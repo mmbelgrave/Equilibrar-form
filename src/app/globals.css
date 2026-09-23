@@ -1,0 +1,194 @@
+@import "tailwindcss";
+
+/* Fonts are declared by next/font/local in src/lib/fonts.ts (self-hosted, no Google),
+   so their URLs stay right when the site is served from a sub-folder. */
+
+/* ---------- Tokens (spec v2 §8–§10), read from the logo file. Tailwind's default palette
+   is removed on purpose: there is no red, amber or green available anywhere. ---------- */
+@theme {
+  --color-*: initial;
+  /* The three brand colours of the logo */
+  --color-rose-500: #cfa1a6;
+  --color-plum-600: #7f5782;
+  --color-white: #ffffff;
+  /* Derived scale */
+  --color-rose-600: #ba8a90;
+  --color-rose-700: #96686e;
+  --color-rose-100: #f7eced;
+  --color-rose-50: #fcf8f8;
+  --color-plum-700: #6a4770;
+  --color-plum-100: #efe7f0;
+  /* Ink and structure */
+  --color-ink: #3a3330;
+  --color-ink-muted: #7a716c;
+  --color-line: #e3d5d2;
+  --color-surface: #ffffff;
+  /* Semantic */
+  --color-attention: #a65a43;
+  --color-focus: #7f5782;
+  --color-transparent: transparent;
+
+  /* Data colours: wheel, step chips, re-map lines only. Never buttons or links. */
+  --color-step-claim: #b03a6a;
+  --color-step-recover: #3d5aa0;
+  --color-step-build: #6e8b2e;
+
+  --font-wordmark: var(--font-poiret), var(--font-poiret-ext), "Century Gothic", "Futura", system-ui, sans-serif;
+  --font-display: var(--font-jost), var(--font-jost-ext), "Century Gothic", "Futura", system-ui, sans-serif;
+  --font-body: var(--font-lato), var(--font-lato-ext), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-script: var(--font-sacramento), var(--font-sacramento-ext), "Segoe Script", cursive;
+
+  --radius-card: 12px;
+  --shadow-card: 0 1px 2px rgba(58, 51, 48, 0.05), 0 8px 24px -12px rgba(58, 51, 48, 0.18);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  /* The 24 px slide-in must never make the page wider than the phone. */
+  overflow-x: clip;
+  background: var(--color-rose-50);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+@media (min-width: 768px) {
+  body { font-size: 17px; }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* ---------- Title band: the logo on its own rose (spec §8 "the title band") ---------- */
+.band { background: var(--color-rose-500); }
+/* plum-600 is only 2.6:1 on the rose, so focus on the band uses ink. */
+.band :focus-visible { outline-color: var(--color-ink); }
+
+/* ---------- Type roles (spec v2 §9) ---------- */
+.t-wordmark { font-family: var(--font-wordmark); font-weight: 400; text-transform: uppercase; letter-spacing: 0.22em; font-size: 22px; line-height: 1; color: var(--color-plum-600); }
+.t-script { font-family: var(--font-script); font-size: 22px; line-height: 1; }
+.t-title { font-family: var(--font-display); font-weight: 300; letter-spacing: 0.01em; font-size: 28px; line-height: 1.2; color: var(--color-plum-700); }
+.t-question { font-family: var(--font-display); font-weight: 400; font-size: 20px; line-height: 1.35; color: var(--color-ink); }
+.t-pillar { font-family: var(--font-display); font-weight: 500; letter-spacing: 0.02em; font-size: 18px; line-height: 1.2; color: var(--color-plum-700); }
+.t-label { font-family: var(--font-body); font-weight: 700; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-plum-600); }
+.t-helper { font-size: 13px; line-height: 1.5; color: var(--color-ink-muted); }
+.t-num { font-family: var(--font-display); font-weight: 500; font-size: 14px; font-variant-numeric: tabular-nums; }
+
+@media (min-width: 768px) {
+  .t-wordmark { font-size: 28px; }
+  .t-title { font-size: 36px; }
+  .t-question { font-size: 24px; }
+  .t-pillar { font-size: 20px; }
+  .t-helper { font-size: 14px; }
+  .t-num { font-size: 15px; }
+}
+
+/* ---------- Buttons (spec §10): one primary per screen ---------- */
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 52px; padding: 12px 24px; border-radius: var(--radius-card);
+  font-family: var(--font-body); font-weight: 700; font-size: 16px; line-height: 1.25;
+  text-align: center; cursor: pointer; text-decoration: none;
+  width: 100%;
+}
+@media (min-width: 768px) { .btn { width: auto; } }
+/* rose-700, not rose-600: white on rose-600 is 3.1:1, below the 4.5:1 rule (agreed deviation). */
+.btn-primary { background: var(--color-rose-700); color: var(--color-white); border: 0; }
+.btn-primary:hover { background: var(--color-plum-700); }
+.btn-secondary { background: transparent; color: var(--color-ink); border: 1px solid var(--color-line); }
+.btn-secondary:hover { border-color: var(--color-rose-600); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+/* Text links in plum-600: rose-700 is 4.4:1 on the rose-50 page, below 4.5:1. */
+.link { color: var(--color-plum-600); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; background: none; border: 0; padding: 0; font: inherit; }
+.link:hover { color: var(--color-plum-700); }
+
+/* ---------- Answer control (spec §10) ---------- */
+.answer {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; min-height: 52px; padding: 12px 16px;
+  background: var(--color-surface); color: var(--color-ink);
+  border: 1px solid var(--color-line); border-radius: var(--radius-card);
+  font-family: var(--font-body); font-size: 16px; text-align: left; cursor: pointer;
+}
+.answer:hover { border-color: var(--color-rose-600); }
+.answer[aria-checked="true"] { background: var(--color-rose-100); border: 2px solid var(--color-rose-600); padding: 11px 15px; }
+.answer .tick { visibility: hidden; flex: none; color: var(--color-plum-700); }
+.answer[aria-checked="true"] .tick { visibility: visible; }
+
+/* Check-in boxes share the answer look. */
+.check {
+  display: flex; align-items: flex-start; gap: 12px;
+  min-height: 52px; padding: 14px 16px; cursor: pointer;
+  background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-card);
+}
+.check:has(input:checked) { background: var(--color-rose-100); border: 2px solid var(--color-rose-600); padding: 13px 15px; }
+.check input { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--color-rose-700); }
+
+.chip { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 4px 12px; border: 1px solid var(--color-line); background: var(--color-surface); font-size: 13px; font-weight: 700; }
+.chip-dot { width: 10px; height: 10px; border-radius: 999px; flex: none; }
+
+.card { background: var(--color-surface); border-radius: var(--radius-card); border: 1px solid var(--color-line); }
+.card-result { background: var(--color-surface); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+
+/* ---------- Motion (spec §10), all of it off under reduced motion ---------- */
+@keyframes slide-next { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes slide-back { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.enter-next { animation: slide-next 200ms ease-out; }
+.enter-back { animation: slide-back 200ms ease-out; }
+
+@keyframes grow { from { transform: scale(0); } to { transform: scale(1); } }
+.seg { transform-box: view-box; transform-origin: 50% 50%; }
+.seg-animate { animation: grow 600ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .enter-next, .enter-back, .seg-animate { animation: none; }
+}
+
+/* ---------- Wheel fills: colour encodes the step (spec §7) ---------- */
+.fill-claim { fill: var(--color-step-claim); }
+.fill-recover { fill: var(--color-step-recover); }
+.fill-build { fill: var(--color-step-build); }
+.bg-claim { background: var(--color-step-claim); }
+.bg-recover { background: var(--color-step-recover); }
+.bg-build { background: var(--color-step-build); }
+.tex-line { stroke: var(--color-ink); }
+
+/* Print and forced colours: three textures at 45°, 90°, 135° — one per step. */
+@media print, (forced-colors: active) {
+  .fill-claim { fill: url(#tex-claim); }
+  .fill-recover { fill: url(#tex-recover); }
+  .fill-build { fill: url(#tex-build); }
+}
+@media (forced-colors: active) {
+  .tex-line { stroke: CanvasText; }
+  .bar-fill { background: CanvasText !important; forced-color-adjust: none; }
+  .chip-dot { forced-color-adjust: none; background: CanvasText; }
+}
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+  .card-result { box-shadow: none; border: 1px solid var(--color-line); }
+}
+
+/* Server-rendered welcome is swapped for a loading line when saved progress exists,
+   so a refresh mid-questionnaire never flashes the start screen. */
+.ssr-loading { display: none; }
+html[data-resume] .ssr-welcome { display: none; }
+html[data-resume] .ssr-loading { display: block; }
+
+/* Headings receive focus programmatically on each new screen; they are not controls. */
+[tabindex="-1"]:focus, [tabindex="-1"]:focus-visible { outline: none; }
+
+/* ink-muted reaches 4.5:1 on white but only just on rose-50 and not on rose-100, so muted
+   helper text is used on cards only; on the page itself helper text stays ink. */
+.t-helper { color: var(--color-ink); }
+.card .t-helper, .card-result .t-helper { color: var(--color-ink-muted); }

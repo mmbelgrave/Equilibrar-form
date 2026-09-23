@@ -1,0 +1,19 @@
+# Dependencies and build output
+node_modules/
+.next/
+.next-export/
+.next-preview/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local tools and environment
+.env*
+!.env.example
+.claude/
+.DS_Store
+Thumbs.db
+
+# Client documents and internal team notes stay off GitHub
+*.docx
+SPEC*.txt

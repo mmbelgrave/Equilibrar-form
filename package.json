@@ -1,0 +1,36 @@
+{
+  "name": "equilibrar-map",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts",
+    "build:static": "next build",
+    "serve:static": "node scripts/serve-static.mjs .next-export 3218"
+  },
+  "dependencies": {
+    "@fontsource/jost": "^5.3.0",
+    "@fontsource/lato": "^5.3.0",
+    "@fontsource/poiret-one": "^5.3.0",
+    "@fontsource/sacramento": "^5.3.0",
+    "next": "^16.3.5",
+    "next-intl": "^4.14.6",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^20.19.43",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.5",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3"
+  },
+  "description": "The Equilibrar Map — a free bilingual self-assessment of six areas of daily life."
+}
