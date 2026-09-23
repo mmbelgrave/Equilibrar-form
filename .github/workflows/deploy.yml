@@ -34,6 +34,9 @@ jobs:
       - run: npm test
       - run: npm run build:static
         env:
+          # STATIC_EXPORT makes the build write a plain static site to .next-export;
+          # BASE_PATH is the sub-folder Pages serves it from.
+          STATIC_EXPORT: "1"
           NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
       # Switches Pages on for the repository the first time, so nobody has to click it.
       - uses: actions/configure-pages@v5
