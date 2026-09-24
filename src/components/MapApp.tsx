@@ -3,7 +3,8 @@
 import { NextIntlClientProvider } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Header } from "@/components/Header";
-import { About, CheckIn, Divider, Question, Result, WhatNext, Welcome } from "@/components/screens";
+import { About, CheckIn, Divider, JourneyScreen, Paths, Question, Result, Welcome } from "@/components/screens";
+import type { Personal } from "@/lib/conclusion";
 import { FLAT_MESSAGES, HTML_LANG, MESSAGES, PATHS, type Locale } from "@/lib/i18n";
 import {
   CONTEXT_KEYS,
@@ -12,12 +13,16 @@ import {
   buildResult,
   contextComplete,
   isComplete,
+  journeyComplete,
+  triedNothing,
   type Answer,
   type Context,
+  type Journey,
 } from "@/lib/scoring";
 import {
   ABOUT_LENGTH,
   FLOW_LENGTH,
+  JOURNEY_LENGTH,
   emptyState,
   loadLocale,
   loadState,
@@ -27,7 +32,7 @@ import {
   type Screen,
 } from "@/lib/storage";
 
-/** Flow positions: each pillar is a divider followed by its four questions (6 × 5 = 30). */
+/** Flow positions: each pillar is a divider followed by its four statements (6 × 5 = 30). */
 const posToQuestion = (pos: number) => {
   const within = pos % (QUESTIONS_PER_PILLAR + 1);
   return within === 0 ? null : Math.floor(pos / (QUESTIONS_PER_PILLAR + 1)) * QUESTIONS_PER_PILLAR + within - 1;
@@ -36,20 +41,29 @@ const questionToPos = (q: number) =>
   Math.floor(q / QUESTIONS_PER_PILLAR) * (QUESTIONS_PER_PILLAR + 1) + (q % QUESTIONS_PER_PILLAR) + 1;
 const posToPillarIndex = (pos: number) => Math.floor(pos / (QUESTIONS_PER_PILLAR + 1));
 
+/** "About you" position of each context answer: C0 name is 1, C1 is 2 … C8 is 9. */
+const CONTEXT_AT_POS = [null, null, ...CONTEXT_KEYS] as const;
+
 /** Where "Continue where I stopped" goes: the first thing not answered yet. */
 function resumePoint(s: SavedState): Pick<SavedState, "screen" | "pos"> {
-  const c = CONTEXT_KEYS.findIndex((k) => s.context[k] === null);
-  if (c !== -1) return { screen: "about", pos: c + 1 };
-  // C6 is optional, but it is offered again until the statements have started.
-  if (s.answers.every((a) => a === null)) return { screen: "about", pos: ABOUT_LENGTH - 1 };
+  const c = CONTEXT_KEYS.findIndex((k) => (k === "topics" ? s.context.topics.length === 0 : s.context[k] === null));
+  if (c !== -1) return { screen: "about", pos: c + 2 };
   const q = s.answers.findIndex((a) => a === null);
   // The first statement of a pillar is resumed at its divider, where the pillar is taught.
   if (q !== -1) return { screen: "flow", pos: questionToPos(q) - (q % QUESTIONS_PER_PILLAR === 0 ? 1 : 0) };
+  if (!journeyComplete(s.journey)) {
+    if (s.journey.tried.length === 0) return { screen: "journey", pos: 1 };
+    if (s.journey.obstacles.length === 0 && !triedNothing(s.journey)) return { screen: "journey", pos: 2 };
+    return { screen: "journey", pos: 4 };
+  }
   return { screen: "checkin", pos: 0 };
 }
 
 const inProgress = (s: SavedState) =>
-  s.answers.some((a) => a !== null) || CONTEXT_KEYS.some((k) => s.context[k] !== null) || s.note.text !== "";
+  s.answers.some((a) => a !== null) ||
+  CONTEXT_KEYS.some((k) => (k === "topics" ? s.context.topics.length > 0 : s.context[k] !== null)) ||
+  s.journey.tried.length > 0 ||
+  s.personal.name !== "";
 
 export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   const [locale, setLocale] = useState<Locale>(initialLocale);
@@ -65,9 +79,11 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   // Read saved progress once, on the client.
   useEffect(() => {
     const { state: s, resultLost } = loadState();
-    if ((s.screen === "checkin" && !isComplete(s.answers)) || (s.screen === "flow" && !contextComplete(s.context))) {
-      Object.assign(s, resumePoint(s));
-    }
+    const stale =
+      (s.screen === "checkin" && !isComplete(s.answers)) ||
+      (s.screen === "flow" && !contextComplete(s.context)) ||
+      (s.screen === "journey" && !isComplete(s.answers));
+    if (stale) Object.assign(s, resumePoint(s));
     setState(s); // eslint-disable-line react-hooks/set-state-in-effect -- one-time read of saved progress from localStorage
     setNotFound(resultLost);
     document.documentElement.removeAttribute("data-resume");
@@ -144,23 +160,35 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
     });
   }
 
-  function setContext<K extends keyof Context>(key: K, value: Context[K]) {
+  const setContext = <K extends keyof Context>(key: K, value: Context[K]) =>
     update((s) => ({ ...s, context: { ...s.context, [key]: value } }));
-  }
+  const setJourney = <K extends keyof Journey>(key: K, value: Journey[K]) =>
+    update((s) => ({ ...s, journey: { ...s.journey, [key]: value } }));
+  const setPersonal = (personal: Personal) => update((s) => ({ ...s, personal }));
 
   // All navigation reads the latest state, so the 250 ms auto-advance never acts on a
   // stale copy. `from` is the position the caller was on; a late timer does nothing.
-  function forward(screen: "about" | "flow", from: number) {
+  function forward(screen: "about" | "flow" | "journey", from: number) {
     update((s) => {
       if (s.screen !== screen || s.pos !== from) return s;
       if (screen === "about") {
-        const key = CONTEXT_KEYS[s.pos - 1];
-        if (key && s.context[key] === null) return s; // no skipping C1–C5 (C6 is optional)
+        const key = CONTEXT_AT_POS[s.pos]; // C0 (the name) is optional
+        if (key && (key === "topics" ? s.context.topics.length === 0 : s.context[key] === null)) return s;
         return s.pos + 1 >= ABOUT_LENGTH ? { ...s, screen: "flow", pos: 0 } : { ...s, pos: s.pos + 1 };
+      }
+      if (screen === "journey") {
+        // J1 and J4 must be answered; J3 and J5 are her own words and optional.
+        if (s.pos === 1 && s.journey.tried.length === 0) return s;
+        if (s.pos === 2 && s.journey.obstacles.length === 0) return s;
+        if (s.pos === 4 && s.journey.readiness === null) return s;
+        // "Nothing yet" means nothing got in the way either: J2 is skipped rather than
+        // forcing an untrue answer (review 3, finding 1).
+        if (s.pos === 1 && triedNothing(s.journey)) return { ...s, journey: { ...s.journey, obstacles: [] }, pos: 3 };
+        return s.pos + 1 >= JOURNEY_LENGTH ? { ...s, screen: "checkin", pos: 0 } : { ...s, pos: s.pos + 1 };
       }
       const q = posToQuestion(s.pos);
       if (q !== null && s.answers[q] === null) return s; // no skipping
-      return s.pos + 1 >= FLOW_LENGTH ? { ...s, screen: "checkin", pos: 0 } : { ...s, pos: s.pos + 1 };
+      return s.pos + 1 >= FLOW_LENGTH ? { ...s, screen: "journey", pos: 0 } : { ...s, pos: s.pos + 1 };
     });
   }
 
@@ -171,9 +199,13 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
           return s.pos === 0 ? { ...s, screen: "welcome", pos: 0 } : { ...s, pos: s.pos - 1 };
         case "flow":
           return s.pos === 0 ? { ...s, screen: "about", pos: ABOUT_LENGTH - 1 } : { ...s, pos: s.pos - 1 };
+        case "journey":
+          if (s.pos === 0) return { ...s, screen: "flow", pos: FLOW_LENGTH - 1 };
+          // J2 was skipped, so Back from J3 goes to J1.
+          return { ...s, pos: s.pos === 3 && triedNothing(s.journey) ? 1 : s.pos - 1 };
         case "checkin":
-          return { ...s, screen: "flow", pos: FLOW_LENGTH - 1 };
-        case "next":
+          return { ...s, screen: "journey", pos: JOURNEY_LENGTH - 1 };
+        case "paths":
           return { ...s, screen: "result", pos: 0 };
         case "result":
           return { ...s, screen: "welcome", pos: 0 };
@@ -217,10 +249,20 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   function finish(flagged: boolean, mood: boolean) {
     setMoodTicked(flagged && mood);
     update((s) => {
-      if (!isComplete(s.answers) || !contextComplete(s.context)) return { ...s, ...resumePoint(s) };
-      const result = buildResult(s.answers, { id: crypto.randomUUID(), locale, now: new Date(), flagged, context: s.context });
-      // The 24 answers and her own words are not kept once the result exists (spec §12, §13).
-      return { ...emptyState(), screen: "result", result, animated: false };
+      if (!isComplete(s.answers) || !contextComplete(s.context) || !journeyComplete(s.journey)) {
+        return { ...s, ...resumePoint(s) };
+      }
+      const result = buildResult(s.answers, {
+        id: crypto.randomUUID(),
+        locale,
+        now: new Date(),
+        flagged,
+        context: s.context,
+        journey: s.journey,
+      });
+      // The 24 answers are not kept once the result exists (spec §12, §13). Her name and
+      // her own words stay, because the conclusion is written with them — on this device only.
+      return { ...emptyState(), screen: "result", result, personal: s.personal, animated: false };
     });
   }
 
@@ -234,7 +276,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
 
   const q = state?.screen === "flow" ? posToQuestion(state.pos) : null;
   const answered = state ? state.answers.filter((a) => a !== null).length : 0;
-  const showProgress = state?.screen === "flow" || state?.screen === "checkin";
+  const showProgress = state?.screen === "flow";
   const full = !state || state.screen === "welcome" || state.screen === "result";
 
   return (
@@ -300,9 +342,9 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   headingRef={headingRef}
                   pos={state.pos}
                   context={state.context}
-                  note={state.note}
+                  personal={state.personal}
                   onChoose={setContext}
-                  onNote={(note) => update((s) => ({ ...s, note }))}
+                  onName={(name) => setPersonal({ ...state.personal, name })}
                   onNext={() => forward("about", state.pos)}
                   onBack={back}
                 />
@@ -325,19 +367,34 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   onBack={back}
                 />
               )}
+              {state.screen === "journey" && (
+                <JourneyScreen
+                  headingRef={headingRef}
+                  pos={state.pos}
+                  journey={state.journey}
+                  personal={state.personal}
+                  onChange={setJourney}
+                  onPersonal={setPersonal}
+                  onNext={() => forward("journey", state.pos)}
+                  onBack={back}
+                />
+              )}
               {state.screen === "checkin" && <CheckIn headingRef={headingRef} onContinue={finish} onBack={back} />}
               {state.screen === "result" && state.result && (
                 <Result
                   headingRef={headingRef}
                   locale={locale}
                   result={state.result}
+                  personal={state.personal}
                   moodTicked={moodTicked}
                   animate={!state.animated}
-                  onContinue={() => go("next")}
+                  onContinue={() => go("paths")}
                   onRetake={start}
                 />
               )}
-              {state.screen === "next" && state.result && <WhatNext headingRef={headingRef} result={state.result} onBack={back} />}
+              {state.screen === "paths" && state.result && (
+                <Paths headingRef={headingRef} result={state.result} onBack={back} />
+              )}
             </div>
           )}
         </main>

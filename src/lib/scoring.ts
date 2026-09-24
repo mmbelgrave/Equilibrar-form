@@ -1,4 +1,5 @@
-// Pillars, steps and scoring (spec §4–§5). Self-contained so `node --test` can import it.
+// Pillars, steps, scoring and the path rules (spec v3 §4–§5).
+// Self-contained so `node --test` can import it.
 
 /** Method order. Also the tie-break order and the wheel order (clockwise from the top). */
 export const PILLARS = ["space", "routine", "sleep", "calm", "food", "strength"] as const;
@@ -49,13 +50,18 @@ export function scorePillars(answers: Answer[]): Scores {
   return scores;
 }
 
-/** Lowest score wins; a tie goes to the earlier step (method order). */
-export function priorityPillar(scores: Scores): Pillar {
-  let best: Pillar = PILLARS[0];
-  for (const pillar of PILLARS) {
-    if (scores[pillar] < scores[best]) best = pillar; // strict: earlier pillar keeps a tie
-  }
-  return best;
+/** Pillars sorted lowest first; ties in method order. */
+export function sortedByScore(scores: Scores): Pillar[] {
+  return [...PILLARS].sort((a, b) => scores[a] - scores[b] || PILLARS.indexOf(a) - PILLARS.indexOf(b));
+}
+
+/**
+ * The two areas with the least support: Pillar A (lowest) and Pillar B (second lowest),
+ * ties to the earlier step (spec v3 §5). Never called a "priority": the app suggests.
+ */
+export function focusPillars(scores: Scores): [Pillar, Pillar] {
+  const [a, b] = sortedByScore(scores);
+  return [a, b];
 }
 
 /** Bands change the words she reads, never a colour or a judgement. */
@@ -66,86 +72,170 @@ export function bandOf(score: number): Band {
   return "strong";
 }
 
-/** Pillars sorted lowest first; ties in method order, so the priority is always first. */
-export function sortedByScore(scores: Scores): Pillar[] {
-  return [...PILLARS].sort((a, b) => scores[a] - scores[b] || PILLARS.indexOf(a) - PILLARS.indexOf(b));
-}
+/** Every pillar 81 or more: the conclusion changes tone and Community is highlighted (§5). */
+export const allStrong = (scores: Scores): boolean => PILLARS.every((p) => scores[p] >= 81);
 
-/* ---------- Part A · context (spec v2 §4). Not scored; changes wording only. ---------- */
+/* ---------------- Part A · about you, and Part C · her journey (spec v3 §4) ------------- */
 
-export const STAGES = ["early", "building", "mid", "later", "na"] as const;
-export const CARING = ["none", "children", "parent", "unwell", "several", "na"] as const;
+export const AGE_BANDS = ["18-29", "30-39", "40-49", "50-59", "60+"] as const;
+export const LIFE_STAGES = ["regular", "changing", "perimenopause", "menopause", "pregnant", "unsure"] as const;
+export const CARING = ["none", "children", "parent", "both", "someone"] as const;
 export const TREATMENT = ["yes", "no", "na"] as const;
-/** C3 support at home and C4 flexible working week: 0 (none) … 4 (a lot). C4 may be "na" (no paid work). */
+export const TOPICS = ["gut", "cycle", "energy", "stress", "weight", "cravings", "skin", "thyroid", "general"] as const;
+export const DURATIONS = ["lt6m", "6-12m", "1-3y", "gt3y"] as const;
+export const TRIED = ["diets", "gym", "supplements", "apps", "doctor", "therapy", "nothing", "other"] as const;
+export const OBSTACLES = ["time", "motivation", "strict", "fit", "results", "why", "cost"] as const;
+export const READINESS = ["ready", "almost", "learn"] as const;
+export const PATHS_ALL = ["community", "consultoria", "mentorship"] as const;
+
+export type AgeBand = (typeof AGE_BANDS)[number];
+export type LifeStage = (typeof LIFE_STAGES)[number];
+export type Caring = (typeof CARING)[number];
+export type Treatment = (typeof TREATMENT)[number];
+export type Topic = (typeof TOPICS)[number];
+export type Duration = (typeof DURATIONS)[number];
+export type Tried = (typeof TRIED)[number];
+export type Obstacle = (typeof OBSTACLES)[number];
+export type Readiness = (typeof READINESS)[number];
+export type Path = (typeof PATHS_ALL)[number];
+
+/** 0 (none) … 4 (a lot). C5 may be "na" when she is not in paid work. */
 export type Level = 0 | 1 | 2 | 3 | 4;
 
+/** C1–C8. C0 (her first name) is personal, so it is never part of this. */
 export type Context = {
-  stage: (typeof STAGES)[number] | null; // C1
-  caring: (typeof CARING)[number] | null; // C2
-  support: Level | null; // C3
-  flex: Level | "na" | null; // C4
-  treatment: (typeof TREATMENT)[number] | null; // C5
+  age: AgeBand | null; // C1
+  stage: LifeStage | null; // C2
+  caring: Caring | null; // C3
+  support: Level | null; // C4
+  flex: Level | "na" | null; // C5
+  treatment: Treatment | null; // C6
+  topics: Topic[]; // C7, at most two
+  duration: Duration | null; // C8
 };
 
-export const emptyContext = (): Context => ({ stage: null, caring: null, support: null, flex: null, treatment: null });
+/** J1–J4 as codes. J3 and J5 are her own words and live with the personal fields. */
+export type Journey = {
+  tried: Tried[]; // J1
+  obstacles: Obstacle[]; // J2
+  readiness: Readiness | null; // J4
+};
 
-export const CONTEXT_KEYS = ["stage", "caring", "support", "flex", "treatment"] as const;
+export const MAX_TOPICS = 2;
+
+export const emptyContext = (): Context => ({
+  age: null,
+  stage: null,
+  caring: null,
+  support: null,
+  flex: null,
+  treatment: null,
+  topics: [],
+  duration: null,
+});
+
+export const emptyJourney = (): Journey => ({ tried: [], obstacles: [], readiness: null });
+
+/** Which "about you" questions must be answered (C0 is optional). */
+export const CONTEXT_KEYS = ["age", "stage", "caring", "support", "flex", "treatment", "topics", "duration"] as const;
 
 export function contextComplete(c: Context): boolean {
-  return CONTEXT_KEYS.every((k) => c[k] !== null);
+  return CONTEXT_KEYS.every((k) => (k === "topics" ? c.topics.length > 0 : c[k] !== null));
+}
+
+/** True when "nothing yet" is her whole answer to J1 — then J2 has nothing to ask about. */
+export const triedNothing = (j: Journey): boolean => j.tried.length > 0 && j.tried.every((t) => t === "nothing");
+
+/** J1 and J4 must be answered; J2 only if she has tried something; J3 and J5 are optional. */
+export function journeyComplete(j: Journey): boolean {
+  return j.tried.length > 0 && (triedNothing(j) || j.obstacles.length > 0) && j.readiness !== null;
 }
 
 /**
- * The result object (spec §5, v2). `suggested_focus`, not "priority": the Map suggests,
- * she decides where she begins. C1–C5 are stored as coded values; C6 (her own words)
- * is never part of this object. `email` stays null until Phase 2.
+ * Which path card is highlighted (spec v3 §3, first rule that matches). It is a
+ * suggestion, never a statement that one path is the right one. All pillars strong →
+ * the Community, whatever else she answered.
+ */
+export function recommendPath(journey: Journey, context: Context, scores?: Scores): Path {
+  if (scores && allStrong(scores)) return "community";
+  if (journey.readiness === "learn") return "community";
+  const longTime = context.duration === "1-3y" || context.duration === "gt3y";
+  if (journey.readiness === "ready" && (longTime || journey.tried.filter((t) => t !== "nothing").length >= 2)) {
+    return "mentorship";
+  }
+  return "consultoria";
+}
+
+/* -------------------------------- The stored result (§5) ------------------------------- */
+
+/**
+ * One row per submission. Coded answers only: her first name, her 90-day words (J3) and her
+ * question for Rê (J5) are never in here — they stay on her own device in Phase 1.
  */
 export type MapResult = {
   submission_id: string;
   locale: "pt" | "en";
   completed_at: string;
+  age_band: AgeBand | null;
+  life_stage: LifeStage | null;
+  caring_for: Caring | null;
+  support_home: Level | null;
+  work_flex: Level | "na" | null;
+  in_treatment: Treatment | null;
+  focus_topics: Topic[];
+  duration: Duration | null;
   score_space: number;
   score_routine: number;
   score_sleep: number;
   score_calm: number;
   score_food: number;
   score_strength: number;
-  suggested_focus: Pillar;
-  suggested_focus_step: Step;
+  focus_pillar: Pillar;
+  second_pillar: Pillar;
+  tried: Tried[];
+  obstacles: Obstacle[];
+  readiness: Readiness | null;
   flagged: boolean;
-  context_stage: Context["stage"];
-  context_caring: Context["caring"];
-  context_support: Context["support"];
-  context_flex: Context["flex"];
-  context_treatment: Context["treatment"];
-  email: string | null;
+  recommended_path: Path;
+  /** Phase 2: which card she chose, and the contact record. */
+  chosen_path: Path | null;
+  contact_id: string | null;
 };
 
 export function buildResult(
   answers: Answer[],
-  opts: { id: string; locale: "pt" | "en"; now: Date; flagged: boolean; context: Context },
+  opts: { id: string; locale: "pt" | "en"; now: Date; flagged: boolean; context: Context; journey: Journey },
 ): MapResult {
   const s = scorePillars(answers);
-  const focus = priorityPillar(s);
+  const [focus, second] = focusPillars(s);
+  const { context: c, journey: j } = opts;
   return {
     submission_id: opts.id,
     locale: opts.locale,
     completed_at: opts.now.toISOString(),
+    age_band: c.age,
+    life_stage: c.stage,
+    caring_for: c.caring,
+    support_home: c.support,
+    work_flex: c.flex,
+    in_treatment: c.treatment,
+    focus_topics: [...c.topics],
+    duration: c.duration,
     score_space: s.space,
     score_routine: s.routine,
     score_sleep: s.sleep,
     score_calm: s.calm,
     score_food: s.food,
     score_strength: s.strength,
-    suggested_focus: focus,
-    suggested_focus_step: STEP_OF[focus],
+    focus_pillar: focus,
+    second_pillar: second,
+    tried: [...j.tried],
+    obstacles: [...j.obstacles],
+    readiness: j.readiness,
     flagged: opts.flagged,
-    context_stage: opts.context.stage,
-    context_caring: opts.context.caring,
-    context_support: opts.context.support,
-    context_flex: opts.context.flex,
-    context_treatment: opts.context.treatment,
-    email: null,
+    recommended_path: recommendPath(j, c, s),
+    chosen_path: null,
+    contact_id: null,
   };
 }
 
@@ -162,45 +252,67 @@ export function scoresOf(result: MapResult): Scores {
 
 const isLevel = (v: unknown): v is Level => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 4;
 const oneOf = <T extends readonly unknown[]>(list: T, v: unknown): v is T[number] => list.includes(v);
+const codesOf = <T extends readonly string[]>(list: T, v: unknown): T[number][] =>
+  Array.isArray(v) ? (v.filter((x) => list.includes(x)) as T[number][]) : [];
 /** Only scores the formula can produce: multiples of 6.25, rounded. */
 const VALID_SCORES = new Set(Array.from({ length: 17 }, (_, i) => Math.round(i * 6.25)));
 
 /**
- * Checks a saved result field by field. Anything damaged or from an older version
- * returns null, so the app shows "result not found" instead of a broken screen.
- * The focus is recomputed from the scores, never trusted.
+ * Checks a saved result field by field. Anything damaged or from an older version returns
+ * null, so the app shows "result not found" instead of a broken screen. The focus pillars
+ * are recomputed from the scores, never trusted.
  */
 export function parseResult(raw: unknown): MapResult | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
-  const scoreKeys = PILLARS.map((p) => `score_${p}`);
-  if (!scoreKeys.every((k) => VALID_SCORES.has(r[k] as number))) return null;
+  if (!PILLARS.every((p) => VALID_SCORES.has(r[`score_${p}`] as number))) return null;
   if (typeof r.submission_id !== "string" || !r.submission_id) return null;
   if (r.locale !== "pt" && r.locale !== "en") return null;
   if (typeof r.completed_at !== "string" || Number.isNaN(Date.parse(r.completed_at))) return null;
   if (typeof r.flagged !== "boolean") return null;
-  if (!oneOf(STAGES, r.context_stage) || !oneOf(CARING, r.context_caring) || !oneOf(TREATMENT, r.context_treatment)) return null;
-  if (!isLevel(r.context_support) || !(isLevel(r.context_flex) || r.context_flex === "na")) return null;
+  if (!oneOf(AGE_BANDS, r.age_band) || !oneOf(LIFE_STAGES, r.life_stage) || !oneOf(CARING, r.caring_for)) return null;
+  if (!oneOf(TREATMENT, r.in_treatment) || !oneOf(DURATIONS, r.duration) || !oneOf(READINESS, r.readiness)) return null;
+  if (!isLevel(r.support_home) || !(isLevel(r.work_flex) || r.work_flex === "na")) return null;
+  if (!oneOf(PATHS_ALL, r.recommended_path)) return null;
+  const journey: Journey = {
+    tried: codesOf(TRIED, r.tried),
+    obstacles: codesOf(OBSTACLES, r.obstacles),
+    readiness: r.readiness,
+  };
   const scores = Object.fromEntries(PILLARS.map((p) => [p, r[`score_${p}`] as number])) as Scores;
-  const focus = priorityPillar(scores);
+  const [focus, second] = focusPillars(scores);
   return {
     submission_id: r.submission_id,
     locale: r.locale,
     completed_at: r.completed_at,
+    age_band: r.age_band,
+    life_stage: r.life_stage,
+    caring_for: r.caring_for,
+    support_home: r.support_home,
+    work_flex: r.work_flex,
+    in_treatment: r.in_treatment,
+    focus_topics: codesOf(TOPICS, r.focus_topics).slice(0, MAX_TOPICS),
+    duration: r.duration,
     score_space: scores.space,
     score_routine: scores.routine,
     score_sleep: scores.sleep,
     score_calm: scores.calm,
     score_food: scores.food,
     score_strength: scores.strength,
-    suggested_focus: focus,
-    suggested_focus_step: STEP_OF[focus],
+    focus_pillar: focus,
+    second_pillar: second,
+    tried: journey.tried,
+    obstacles: journey.obstacles,
+    readiness: r.readiness,
     flagged: r.flagged,
-    context_stage: r.context_stage,
-    context_caring: r.context_caring,
-    context_support: r.context_support,
-    context_flex: r.context_flex,
-    context_treatment: r.context_treatment,
-    email: typeof r.email === "string" ? r.email : null,
+    // Recomputed, like the focus pillars: a Map saved before a rule change still shows
+    // the highlight today's rules would give.
+    recommended_path: recommendPath(journey, {
+      ...emptyContext(),
+      duration: r.duration,
+      topics: codesOf(TOPICS, r.focus_topics).slice(0, MAX_TOPICS),
+    }, scores),
+    chosen_path: oneOf(PATHS_ALL, r.chosen_path) ? r.chosen_path : null,
+    contact_id: typeof r.contact_id === "string" ? r.contact_id : null,
   };
 }

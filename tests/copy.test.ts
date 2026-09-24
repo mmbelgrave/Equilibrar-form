@@ -8,6 +8,7 @@ const load = (l: string) =>
   JSON.parse(readFileSync(new URL(`../src/messages/${l}.json`, import.meta.url), "utf8")) as Record<string, string>;
 const pt = load("pt");
 const en = load("en");
+const PILLARS = ["space", "routine", "sleep", "calm", "food", "strength"];
 
 test("both locales have exactly the same keys", () => {
   assert.deepEqual(Object.keys(pt).sort(), Object.keys(en).sort());
@@ -19,20 +20,21 @@ test("no empty strings", () => {
   }
 });
 
-test("24 questions and 5 scale points in both languages", () => {
+test("24 statements and 5 scale points in both languages", () => {
   for (const m of [pt, en]) {
     for (let i = 1; i <= 24; i++) assert.ok(m[`q${i}`], `q${i}`);
     for (let i = 0; i <= 4; i++) assert.ok(m[`scale.${i}`], `scale.${i}`);
   }
 });
 
-test("spec wording kept: sample questions, scale, pillar and step names (PT)", () => {
+test("spec v3 wording: kept statements, the scale, pillar and step names", () => {
   assert.equal(pt.q1, "Numa semana normal, eu tenho um tempo que é só meu");
-  assert.equal(pt.q16, "Eu passo o meu dia sem me sentir no limite");
-  assert.equal(en.q16, "I get through my day without feeling on edge");
+  assert.equal(pt.q19, "A minha relação com a comida é tranquila — sem regras e sem culpa");
+  assert.equal(en.q16, "I get through my day without feeling overwhelmed or on edge");
+  assert.equal(en.q20, "I eat when I'm hungry and stop when I'm satisfied, not driven by cravings or emotions");
   assert.deepEqual([0, 1, 2, 3, 4].map((i) => pt[`scale.${i}`]), ["Nunca", "Raramente", "Às vezes", "Quase sempre", "Sempre"]);
   assert.deepEqual(
-    ["space", "routine", "sleep", "calm", "food", "strength"].map((p) => pt[`pillar.${p}`]),
+    PILLARS.map((p) => pt[`pillar.${p}`]),
     ["Espaço", "Rotina", "Sono", "Calma", "Alimentação", "Força"],
   );
   assert.deepEqual(["claim", "recover", "build"].map((s) => pt[`step.${s}`]), ["Ocupar", "Recuperar", "Construir"]);
@@ -55,23 +57,56 @@ test("forbidden medical words appear nowhere except the disclaimer", () => {
   }
 });
 
-test("spec v2 wording: 'the Map suggests; it does not decide' line, exactly", () => {
-  assert.equal(en["result.decide"], "Your Map helps you notice where support may be useful. Your priorities, your circumstances and any professional advice help decide where you actually begin.");
-  assert.equal(pt["result.decide"], "O seu Mapa ajuda você a perceber onde um apoio pode ser útil. As suas prioridades, a sua realidade e qualquer orientação profissional ajudam a decidir por onde você realmente começa.");
+test("the 'Map suggests; it does not decide' line, exactly as the spec writes it", () => {
+  assert.equal(
+    en["result.decide"],
+    "Your Map helps you notice where support may be useful. Your priorities, your circumstances and any professional advice help decide where you actually begin.",
+  );
+  assert.equal(
+    pt["result.decide"],
+    "O seu Mapa ajuda você a perceber onde um apoio pode ser útil. As suas prioridades, a sua realidade e qualquer orientação profissional ajudam a decidir por onde você realmente começa.",
+  );
 });
 
-test("spec v2 context questions C1–C6 in both languages, as in the spec", () => {
-  assert.equal(pt["c1.q"], "Em que fase da vida você está, mais ou menos?");
-  assert.equal(en["c5.q"], "Are you being treated for anything at the moment?");
-  assert.equal(pt["c6.q"], "O que te trouxe aqui hoje, com as suas palavras?");
-  for (const m of [pt, en]) for (let i = 1; i <= 6; i++) assert.ok(m[`c${i}.q`], `c${i}.q`);
-  for (const m of [pt, en]) assert.match(m["result.ctx.treatment"], /(treatment|tratamento)/);
+test("spec v3: nine about-you questions, five journey questions, three path cards", () => {
+  for (const m of [pt, en]) {
+    for (let i = 0; i <= 8; i++) assert.ok(m[`c${i}.q`], `c${i}.q`);
+    for (let i = 1; i <= 5; i++) assert.ok(m[`j${i}.q`], `j${i}.q`);
+    for (const p of ["community", "consultoria", "mentorship"]) {
+      for (const f of ["name", "promise", "length", "covers", "continues", "forYou"]) {
+        assert.ok(m[`path.${p}.${f}`], `path.${p}.${f}`);
+      }
+    }
+  }
+  assert.match(en["c7.hint"], /two/);
 });
 
-test("no result copy calls the focus a 'priority' or 'lowest pillar' instruction", () => {
+test("every pillar has its conclusion copy: a phrase, three work columns and a practice", () => {
+  for (const m of [pt, en]) {
+    for (const p of PILLARS) {
+      assert.ok(m[`phrase.${p}`], `phrase.${p}`);
+      assert.ok(m[`practice.${p}`], `practice.${p}`);
+      for (const f of ["looksLike", "weDo", "towards"]) assert.ok(m[`work.${p}.${f}`], `work.${p}.${f}`);
+    }
+  }
+});
+
+test("it invites, never pressures: no countdown, scarcity, deadline or promised result (§2)", () => {
+  const banned = [
+    /only \d+ (places|spots)/i, /last chance/i, /\bhurry up\b/i, /deadline/i, /guarantee/i,
+    /garantia/i, /últimas vagas/i, /prazo final/i, /resultado garantido/i, /vagas limitadas/i,
+  ];
+  for (const [l, m] of [["pt", pt], ["en", en]] as const) {
+    for (const [k, v] of Object.entries(m)) {
+      for (const re of banned) assert.ok(!re.test(v), `${l}:${k} — ${v}`);
+    }
+  }
+});
+
+test("no result copy calls her focus a 'priority' or an instruction", () => {
   for (const m of [pt, en]) {
     for (const [k, v] of Object.entries(m)) {
-      if (!k.startsWith("result.") && !k.startsWith("next.")) continue;
+      if (!k.startsWith("result.") && !k.startsWith("paths.")) continue;
       assert.ok(!/\bpriority\b|pilar mais baixo|lowest pillar/i.test(v), `${k}: ${v}`);
     }
   }
@@ -82,12 +117,19 @@ test("disclaimer present in both languages, as in the spec", () => {
   assert.match(en.disclaimer, /does not replace your doctor/);
 });
 
-test("every priority pillar has a 'we still start at Claim' line and one action", () => {
+test("the result always says everyone begins at Claim", () => {
   for (const m of [pt, en]) {
-    for (const p of ["space", "routine", "sleep", "calm", "food", "strength"]) {
-      assert.ok(m[`result.action.${p}`], p);
-      assert.ok(m[`result.startClaim.${p}`].includes(m["step.claim"]), `${p} line names ${m["step.claim"]}`);
-    }
+    assert.ok(m["result.begin"].includes(m["pillar.space"]));
+    assert.ok(m["result.begin"].includes(m["pillar.routine"]));
+    assert.ok(m["result.beginIsClaim"]);
+  }
+});
+
+test("the paths screen says signing up is not possible yet, and the price is not invented", () => {
+  for (const m of [pt, en]) {
+    assert.ok(m["paths.soon"]);
+    assert.ok(m["paths.priceTbc"]);
+    assert.ok(!/€|\$|R\$/.test(Object.values(m).join(" ")), "no price is shown until the review");
   }
 });
 
@@ -110,5 +152,16 @@ test("no hard-coded words between JSX tags in components", () => {
       assert.fail(`${f}: hard-coded text "${text}"`);
     }
     for (const m of src.matchAll(/aria-label="([^"]+)"/g)) assert.fail(`${f}: hard-coded aria-label "${m[1]}"`);
+  }
+});
+
+test("no key is a prefix of another, which would turn a sentence into a group", () => {
+  // next-intl reads dots as nesting: "result.begin" and "result.begin.isClaim" cannot both exist.
+  for (const [l, m] of [["pt", pt], ["en", en]] as const) {
+    const keys = Object.keys(m);
+    for (const k of keys) {
+      const clash = keys.find((other) => other !== k && other.startsWith(k + "."));
+      assert.ok(!clash, `${l}: "${k}" is both a sentence and the start of "${clash}"`);
+    }
   }
 });

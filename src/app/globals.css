@@ -82,12 +82,15 @@ body {
 .t-label { font-family: var(--font-body); font-weight: 700; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-plum-600); }
 .t-helper { font-size: 13px; line-height: 1.5; color: var(--color-ink-muted); }
 .t-num { font-family: var(--font-display); font-weight: 500; font-size: 14px; font-variant-numeric: tabular-nums; }
+/* Wheel labels are a step smaller on a phone, so the wheel itself can be bigger. */
+.t-wheel-label { font-family: var(--font-display); font-weight: 500; letter-spacing: 0.02em; font-size: 16px; line-height: 1.15; color: var(--color-plum-700); }
 
 @media (min-width: 768px) {
   .t-wordmark { font-size: 28px; }
   .t-title { font-size: 36px; }
   .t-question { font-size: 24px; }
   .t-pillar { font-size: 20px; }
+  .t-wheel-label { font-size: 20px; }
   .t-helper { font-size: 14px; }
   .t-num { font-size: 15px; }
 }

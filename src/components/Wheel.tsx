@@ -14,9 +14,9 @@ import { PILLARS, STEP_OF, bandOf, type Pillar, type Scores } from "@/lib/scorin
 const VB = 200; // SVG viewBox size
 const C = VB / 2;
 const R = 96; // full radius in viewBox units (room for the ring stroke)
-const GAP = 6; // px between the ring and a label
-const MAX_R = 130; // px, wheel radius cap on wide screens
-const MIN_R = 56;
+const GAP = 4; // px between the ring and a label
+const MAX_R = 170; // px, wheel radius cap on wide screens
+const MIN_R = 64;
 const COS30 = Math.cos(Math.PI / 6);
 
 /** Angle (degrees, clockwise from the top) at the middle of segment i. */
@@ -74,6 +74,9 @@ export function Wheel({
     setLayout({ width, r, cx, cy, height });
   }, []);
 
+  // The labels change with the language, and a switch happens in place, so the sizes are
+  // part of what this effect depends on (review 1 finding 2, back again in review 3).
+  const labelText = PILLARS.map((p) => t(`pillar.${p}`)).join("|");
   useLayoutEffect(() => {
     measure();
     const ro = new ResizeObserver(measure);
@@ -82,7 +85,7 @@ export function Wheel({
     labelRefs.current.forEach((el) => el && ro.observe(el));
     document.fonts?.ready.then(measure).catch(() => {});
     return () => ro.disconnect();
-  }, [measure]);
+  }, [measure, labelText]);
 
   function labelStyle(i: number): React.CSSProperties {
     if (!layout) return { position: "absolute", left: 0, top: 0, visibility: "hidden" };
@@ -175,7 +178,7 @@ export function Wheel({
             (selected === p ? "bg-rose-100" : "")
           }
         >
-          <span className="t-pillar">{t(`pillar.${p}`)}</span>
+          <span className="t-wheel-label">{t(`pillar.${p}`)}</span>
           <span className="t-num text-ink">
             {scores[p]}
             <span className="sr-only">

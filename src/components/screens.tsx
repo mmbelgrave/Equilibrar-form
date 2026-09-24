@@ -4,22 +4,32 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Bars } from "@/components/Bars";
 import { Wheel } from "@/components/Wheel";
+import { conclusionBlocks, type Personal } from "@/lib/conclusion";
 import { PATHS, formatDate, type Locale } from "@/lib/i18n";
-import { PATHWAY_URL, PROGRAMME_URL } from "@/lib/links";
 import {
+  AGE_BANDS,
   CARING,
+  DURATIONS,
+  LIFE_STAGES,
+  MAX_TOPICS,
+  OBSTACLES,
+  PATHS_ALL,
   PILLARS,
   QUESTION_COUNT,
-  STAGES,
+  READINESS,
   STEPS,
   STEP_OF,
+  TOPICS,
   TREATMENT,
+  TRIED,
   bandOf,
   pillarOfQuestion,
   scoresOf,
   type Answer,
   type Context,
+  type Journey,
   type MapResult,
+  type Path,
   type Pillar,
   type Step,
 } from "@/lib/scoring";
@@ -65,14 +75,31 @@ function Progress({ n, total, label }: { n: number; total: number; label: string
   );
 }
 
+function ScreenHead({ label, progress }: { label: string; progress?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="t-label">{label}</span>
+      {progress}
+    </div>
+  );
+}
+
+function Nav({ onBack, children }: { onBack: () => void; children: React.ReactNode }) {
+  return (
+    <div className="mt-auto flex flex-col-reverse items-center gap-4 pt-6 md:flex-row md:justify-between">
+      <BackLink onBack={onBack} />
+      {children}
+    </div>
+  );
+}
+
 /* ------------------------------------------------ The answer control (spec §10) */
 
 type Option<V> = { value: V; label: string };
 
 /**
  * Full-width stacked options as one radio group: one Tab stop, arrows move, number keys
- * select, a tap advances after 250 ms, Enter advances once answered. Next stays disabled
- * until answered.
+ * select, a tap advances after 250 ms, Enter advances once answered.
  */
 function Choices<V extends string | number>({
   headingRef,
@@ -91,7 +118,7 @@ function Choices<V extends string | number>({
   headingId: string;
   title: string;
   label: string;
-  progress: React.ReactNode;
+  progress?: React.ReactNode;
   hint?: string;
   options: Option<V>[];
   value: V | null;
@@ -140,15 +167,11 @@ function Choices<V extends string | number>({
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  // Roving tab stop: the chosen option, or the first one.
-  const tabStop = selectedIndex === -1 ? 0 : selectedIndex;
+  const tabStop = selectedIndex === -1 ? 0 : selectedIndex; // roving tab stop
   return (
     <section className="flex flex-1 flex-col gap-5 pt-2">
-      <div className="flex items-center justify-between gap-4">
-        <span className="t-label">{label}</span>
-        {progress}
-      </div>
-      <h1 ref={headingRef} tabIndex={-1} id={headingId} className="t-question min-h-[3.9em] outline-none">
+      <ScreenHead label={label} progress={progress} />
+      <h1 ref={headingRef} tabIndex={-1} id={headingId} className="t-question outline-none">
         {title}
       </h1>
       {hint && <p className="t-helper -mt-2">{hint}</p>}
@@ -173,13 +196,169 @@ function Choices<V extends string | number>({
           </button>
         ))}
       </div>
-      <div className="mt-auto flex items-center justify-between gap-4 pt-6">
-        <BackLink onBack={onBack} />
+      <Nav onBack={onBack}>
         <button type="button" className="btn btn-secondary !w-auto" disabled={value === null} onClick={onNext}>
           {t("question.next")}
           <span aria-hidden="true">→</span>
         </button>
-      </div>
+      </Nav>
+    </section>
+  );
+}
+
+/** Pick several (J1, J2) or at most `max` (C7 takes two topics). */
+function MultiChoice<V extends string>({
+  headingRef,
+  headingId,
+  title,
+  label,
+  progress,
+  hint,
+  options,
+  values,
+  max,
+  maxNote,
+  exclusive,
+  onChange,
+  onNext,
+  onBack,
+}: {
+  headingRef: HeadingRef;
+  headingId: string;
+  title: string;
+  label: string;
+  progress?: React.ReactNode;
+  hint?: string;
+  options: Option<V>[];
+  values: V[];
+  max?: number;
+  maxNote?: string;
+  /** An option that cannot be combined with the others, e.g. "nothing yet". */
+  exclusive?: V;
+  onChange: (values: V[]) => void;
+  onNext: () => void;
+  onBack: () => void;
+}) {
+  const t = useTranslations();
+  const full = max !== undefined && values.length >= max;
+
+  function toggle(v: V) {
+    if (values.includes(v)) return onChange(values.filter((x) => x !== v));
+    if (exclusive && v === exclusive) return onChange([v]);
+    const kept = exclusive ? values.filter((x) => x !== exclusive) : values;
+    if (max !== undefined && kept.length >= max) return;
+    onChange([...kept, v]);
+  }
+
+  return (
+    <section className="flex flex-1 flex-col gap-5 pt-2">
+      <ScreenHead label={label} progress={progress} />
+      <h1 ref={headingRef} tabIndex={-1} id={headingId} className="t-question outline-none">
+        {title}
+      </h1>
+      {hint && <p className="t-helper -mt-2">{hint}</p>}
+      <fieldset className="flex flex-col gap-2" aria-describedby={maxNote && full ? `${headingId}-max` : undefined}>
+        <legend className="sr-only">{title}</legend>
+        {options.map((o) => (
+          <label key={o.value} className={"check" + (full && !values.includes(o.value) ? " opacity-60" : "")}>
+            <input
+              type="checkbox"
+              checked={values.includes(o.value)}
+              disabled={full && !values.includes(o.value)}
+              onChange={() => toggle(o.value)}
+            />
+            <span>{o.label}</span>
+          </label>
+        ))}
+      </fieldset>
+      {maxNote && full && (
+        <p className="t-helper" id={`${headingId}-max`} role="status">
+          {maxNote}
+        </p>
+      )}
+      <Nav onBack={onBack}>
+        <button type="button" className="btn btn-secondary !w-auto" disabled={values.length === 0} onClick={onNext}>
+          {t("question.next")}
+          <span aria-hidden="true">→</span>
+        </button>
+      </Nav>
+    </section>
+  );
+}
+
+/** Her own words, or her name: optional, kept on this device only. */
+function TextAnswer({
+  headingRef,
+  headingId,
+  title,
+  label,
+  progress,
+  hint,
+  value,
+  onChange,
+  onNext,
+  onBack,
+  rows = 4,
+  maxLength = 2000,
+  footer,
+  nextLabel,
+}: {
+  headingRef: HeadingRef;
+  headingId: string;
+  title: string;
+  label: string;
+  progress?: React.ReactNode;
+  hint?: string;
+  value: string;
+  onChange: (v: string) => void;
+  onNext: () => void;
+  onBack: () => void;
+  rows?: number;
+  maxLength?: number;
+  footer?: React.ReactNode;
+  nextLabel?: string;
+}) {
+  const t = useTranslations();
+  return (
+    <section className="flex flex-1 flex-col gap-5 pt-2">
+      <ScreenHead label={label} progress={progress} />
+      <h1 ref={headingRef} tabIndex={-1} id={headingId} className="t-question outline-none">
+        {title}
+      </h1>
+      {hint && (
+        <p className="t-helper -mt-2" id={`${headingId}-hint`}>
+          {hint}
+        </p>
+      )}
+      {rows === 1 ? (
+        <input
+          type="text"
+          aria-labelledby={headingId}
+          aria-describedby={hint ? `${headingId}-hint` : undefined}
+          autoComplete="given-name"
+          maxLength={maxLength}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onNext()}
+          className="w-full rounded-[12px] border border-line bg-surface px-4 py-3 text-base"
+        />
+      ) : (
+        <textarea
+          aria-labelledby={headingId}
+          aria-describedby={hint ? `${headingId}-hint` : undefined}
+          rows={rows}
+          maxLength={maxLength}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded-[12px] border border-line bg-surface px-4 py-3 text-base"
+        />
+      )}
+      {footer}
+      <Nav onBack={onBack}>
+        <button type="button" className="btn btn-primary !w-auto" onClick={onNext}>
+          {nextLabel ?? t("question.next")}
+        </button>
+      </Nav>
     </section>
   );
 }
@@ -217,12 +396,17 @@ export function Welcome({
       <h1 ref={headingRef} tabIndex={-1} className="t-title outline-none">
         {t("welcome.title")}
       </h1>
-      <p className="text-lg">{t("welcome.lead")}</p>
+      <p className="text-lg">{t("welcome.p1")}</p>
+      <p>{t("welcome.p2")}</p>
+      <p>{t("welcome.p3")}</p>
+      <div className="card px-4 py-4">
+        <p>{t("welcome.p4")}</p>
+        <p className="t-script mt-2 text-right text-rose-700">{t("welcome.signature")}</p>
+      </div>
       <p className="t-label">{t("welcome.time")}</p>
       <div className="flex flex-col items-center gap-3 md:items-start">
         {inProgress ? (
           confirming ? (
-            // Starting again removes her answers, so it is never one stray tap away.
             <div className="card w-full space-y-3 px-4 py-4" role="alertdialog" aria-labelledby="restart-q">
               <p id="restart-q">{t(hasResult ? "welcome.restartConfirmKept" : "welcome.restartConfirm")}</p>
               <div className="flex flex-col items-center gap-2 md:flex-row">
@@ -277,30 +461,29 @@ export function Welcome({
   );
 }
 
-/* ------------------------------------------------- 2 · About you (Part A, C1–C6) */
+/* ------------------------------------------------- 2 · About you (Part A, C0–C8) */
 
 export function About({
   headingRef,
   pos,
   context,
-  note,
+  personal,
   onChoose,
-  onNote,
+  onName,
   onNext,
   onBack,
 }: {
   headingRef: HeadingRef;
   pos: number;
   context: Context;
-  note: { text: string; consent: boolean };
+  personal: Personal;
   onChoose: <K extends keyof Context>(key: K, value: Context[K]) => void;
-  onNote: (note: { text: string; consent: boolean }) => void;
+  onName: (name: string) => void;
   onNext: () => void;
   onBack: () => void;
 }) {
   const t = useTranslations();
 
-  // Enter continues from the intro (buttons handle their own Enter).
   useEffect(() => {
     if (pos !== 0) return;
     function onKey(e: KeyboardEvent) {
@@ -320,74 +503,58 @@ export function About({
           {t("about.title")}
         </h1>
         <p className="text-lg">{t("about.lead")}</p>
-        <div className="mt-auto flex flex-col-reverse items-center gap-4 pt-8 md:flex-row md:justify-between">
-          <BackLink onBack={onBack} />
+        <Nav onBack={onBack}>
           <button type="button" className="btn btn-primary" onClick={onNext}>
             {t("divider.continue")}
           </button>
-        </div>
+        </Nav>
       </section>
     );
   }
 
-  const progress = <Progress n={pos} total={6} label={t("question.progressLabel", { n: pos, total: 6 })} />;
+  const progress = <Progress n={pos} total={9} label={t("question.progressLabel", { n: pos, total: 9 })} />;
   const common = { headingRef, label: t("about.label"), progress, onNext, onBack };
   const levels = [0, 1, 2, 3, 4] as const;
+  // next-intl types message keys literally; these are built from the code lists above.
+  const tx = t as unknown as (key: string) => string;
+  const opts = <T extends string>(list: readonly T[], prefix: string) =>
+    list.map((v) => ({ value: v, label: tx(`${prefix}.${v}`) }));
 
-  if (pos === 1)
-    return <Choices {...common} headingId="c1" title={t("c1.q")} value={context.stage}
-      options={STAGES.map((v) => ({ value: v, label: t(`c1.${v}`) }))} onChoose={(v) => onChoose("stage", v)} />;
-  if (pos === 2)
-    return <Choices {...common} headingId="c2" title={t("c2.q")} value={context.caring}
-      options={CARING.map((v) => ({ value: v, label: t(`c2.${v}`) }))} onChoose={(v) => onChoose("caring", v)} />;
-  if (pos === 3)
-    return <Choices {...common} headingId="c3" title={t("c3.q")} value={context.support}
-      options={levels.map((v) => ({ value: v, label: t(`c3.${v}`) }))} onChoose={(v) => onChoose("support", v)} />;
-  if (pos === 4)
-    return <Choices<number | "na"> {...common} headingId="c4" title={t("c4.q")} value={context.flex}
-      options={[...levels.map((v) => ({ value: v as number | "na", label: t(`c4.${v}`) })), { value: "na", label: t("c4.na") }]}
-      onChoose={(v) => onChoose("flex", v as Context["flex"])} />;
-  if (pos === 5)
-    return <Choices {...common} headingId="c5" title={t("c5.q")} value={context.treatment}
-      options={TREATMENT.map((v) => ({ value: v, label: t(`c5.${v}`) }))} onChoose={(v) => onChoose("treatment", v)} />;
-
-  // C6: her own words. Optional, with its own consent, unticked by default.
-  return (
-    <section className="flex flex-1 flex-col gap-5 pt-2">
-      <div className="flex items-center justify-between gap-4">
-        <span className="t-label">{t("about.label")}</span>
-        {progress}
-      </div>
-      <h1 ref={headingRef} tabIndex={-1} id="c6" className="t-question outline-none">
-        {t("c6.q")}
-      </h1>
-      <p className="t-helper -mt-2" id="c6-hint">
-        {t("c6.hint")}
-      </p>
-      <textarea
-        aria-labelledby="c6"
-        aria-describedby="c6-hint c6-local"
-        rows={4}
-        maxLength={2000}
-        value={note.text}
-        onChange={(e) => onNote({ ...note, text: e.target.value })}
-        className="w-full rounded-[12px] border border-line bg-surface px-4 py-3 text-base"
-      />
-      <label className="check">
-        <input type="checkbox" checked={note.consent} onChange={(e) => onNote({ ...note, consent: e.target.checked })} />
-        <span>{t("c6.consent")}</span>
-      </label>
-      <p className="t-helper" id="c6-local">
-        {t("c6.local")}
-      </p>
-      <div className="mt-auto flex flex-col-reverse items-center gap-4 pt-6 md:flex-row md:justify-between">
-        <BackLink onBack={onBack} />
-        <button type="button" className="btn btn-primary" onClick={onNext}>
-          {t("about.continue")}
-        </button>
-      </div>
-    </section>
-  );
+  switch (pos) {
+    case 1:
+      return (
+        <TextAnswer {...common} headingId="c0" title={t("c0.q")} hint={t("c0.hint")} rows={1} maxLength={60}
+          value={personal.name} onChange={onName} />
+      );
+    case 2:
+      return <Choices {...common} headingId="c1" title={t("c1.q")} value={context.age}
+        options={opts(AGE_BANDS, "c1")} onChoose={(v) => onChoose("age", v)} />;
+    case 3:
+      return <Choices {...common} headingId="c2" title={t("c2.q")} value={context.stage}
+        options={opts(LIFE_STAGES, "c2")} onChoose={(v) => onChoose("stage", v)} />;
+    case 4:
+      return <Choices {...common} headingId="c3" title={t("c3.q")} value={context.caring}
+        options={opts(CARING, "c3")} onChoose={(v) => onChoose("caring", v)} />;
+    case 5:
+      return <Choices {...common} headingId="c4" title={t("c4.q")} value={context.support}
+        options={levels.map((v) => ({ value: v, label: t(`c4.${v}`) }))} onChoose={(v) => onChoose("support", v)} />;
+    case 6:
+      return <Choices<number | "na"> {...common} headingId="c5" title={t("c5.q")} value={context.flex}
+        options={[...levels.map((v) => ({ value: v as number | "na", label: t(`c5.${v}`) })), { value: "na", label: t("c5.na") }]}
+        onChoose={(v) => onChoose("flex", v as Context["flex"])} />;
+    case 7:
+      return <Choices {...common} headingId="c6" title={t("c6.q")} value={context.treatment}
+        options={opts(TREATMENT, "c6")} onChoose={(v) => onChoose("treatment", v)} />;
+    case 8:
+      return (
+        <MultiChoice {...common} headingId="c7" title={t("c7.q")} hint={t("c7.hint")} maxNote={t("c7.max")}
+          max={MAX_TOPICS} options={opts(TOPICS, "c7")} values={context.topics}
+          onChange={(v) => onChoose("topics", v)} />
+      );
+    default:
+      return <Choices {...common} headingId="c8" title={t("c8.q")} value={context.duration}
+        options={opts(DURATIONS, "c8")} onChoose={(v) => onChoose("duration", v)} />;
+  }
 }
 
 /* ------------------------------------------------ 3a · Pillar divider (full screen) */
@@ -406,7 +573,6 @@ export function Divider({
   const t = useTranslations();
   const pillar = PILLARS[pillarIndex];
 
-  // Enter continues from anywhere on the divider (buttons handle their own Enter).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Enter" || e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement) return;
@@ -427,12 +593,11 @@ export function Divider({
       </h1>
       <p className="text-lg">{t(`divider.${pillar}.title`)}</p>
       <p>{t(`divider.${pillar}.line`)}</p>
-      <div className="mt-auto flex flex-col-reverse items-center gap-4 pt-8 md:flex-row md:justify-between">
-        <BackLink onBack={onBack} />
+      <Nav onBack={onBack}>
         <button type="button" className="btn btn-primary" onClick={onContinue}>
           {t("divider.continue")}
         </button>
-      </div>
+      </Nav>
     </section>
   );
 }
@@ -473,7 +638,104 @@ export function Question({
   );
 }
 
-/* --------------------------------------------------------------- 4 · Check-in */
+/* --------------------------------------------- 4 · Your journey (Part C, J1–J5) */
+
+export function JourneyScreen({
+  headingRef,
+  pos,
+  journey,
+  personal,
+  onChange,
+  onPersonal,
+  onNext,
+  onBack,
+}: {
+  headingRef: HeadingRef;
+  pos: number;
+  journey: Journey;
+  personal: Personal;
+  onChange: <K extends keyof Journey>(key: K, value: Journey[K]) => void;
+  onPersonal: (p: Personal) => void;
+  onNext: () => void;
+  onBack: () => void;
+}) {
+  const t = useTranslations();
+
+  useEffect(() => {
+    if (pos !== 0) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Enter" || e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement) return;
+      e.preventDefault();
+      onNext();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  if (pos === 0) {
+    return (
+      <section className="flex flex-1 flex-col gap-6 pt-8">
+        <p className="t-label">{t("journey.label")}</p>
+        <h1 ref={headingRef} tabIndex={-1} className="t-title outline-none">
+          {t("journey.title")}
+        </h1>
+        <p className="text-lg">{t("journey.lead")}</p>
+        <Nav onBack={onBack}>
+          <button type="button" className="btn btn-primary" onClick={onNext}>
+            {t("divider.continue")}
+          </button>
+        </Nav>
+      </section>
+    );
+  }
+
+  const progress = <Progress n={pos} total={5} label={t("question.progressLabel", { n: pos, total: 5 })} />;
+  const common = { headingRef, label: t("journey.label"), progress, onNext, onBack };
+  const consent = (
+    <>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={personal.shareConsent}
+          onChange={(e) => onPersonal({ ...personal, shareConsent: e.target.checked })}
+        />
+        <span>{t("share.consent")}</span>
+      </label>
+      <p className="t-helper">{t("share.local")}</p>
+    </>
+  );
+
+  switch (pos) {
+    case 1:
+      return (
+        <MultiChoice {...common} headingId="j1" title={t("j1.q")} hint={t("j1.hint")} exclusive="nothing"
+          options={TRIED.map((v) => ({ value: v, label: t(`j1.${v}`) }))} values={journey.tried}
+          onChange={(v) => onChange("tried", v)} />
+      );
+    case 2:
+      return (
+        <MultiChoice {...common} headingId="j2" title={t("j2.q")} hint={t("j1.hint")}
+          options={OBSTACLES.map((v) => ({ value: v, label: t(`j2.${v}`) }))} values={journey.obstacles}
+          onChange={(v) => onChange("obstacles", v)} />
+      );
+    case 3:
+      return (
+        <TextAnswer {...common} headingId="j3" title={t("j3.q")} hint={t("j3.hint")}
+          value={personal.vision} onChange={(v) => onPersonal({ ...personal, vision: v })} footer={consent} />
+      );
+    case 4:
+      return <Choices {...common} headingId="j4" title={t("j4.q")} value={journey.readiness}
+        options={READINESS.map((v) => ({ value: v, label: t(`j4.${v}`) }))} onChoose={(v) => onChange("readiness", v)} />;
+    default:
+      return (
+        <TextAnswer {...common} headingId="j5" title={t("j5.q")} hint={t("j5.hint")} rows={3}
+          value={personal.question} onChange={(v) => onPersonal({ ...personal, question: v })}
+          footer={consent} nextLabel={t("about.continue")} />
+      );
+  }
+}
+
+/* --------------------------------------------------------------- 5 · Check-in */
 
 const CHECKS = ["bleeding", "weight", "bowel", "pain", "tired", "mood"] as const;
 
@@ -519,33 +781,39 @@ export function CheckIn({
           </label>
         ))}
       </fieldset>
-      <div className="mt-auto flex flex-col-reverse items-center gap-4 pt-6 md:flex-row md:justify-between">
-        <BackLink onBack={onBack} />
+      <Nav onBack={onBack}>
         <button type="button" className="btn btn-primary" onClick={() => onContinue(flagged, ticked.has("mood"))}>
           {t("checkin.continue")}
         </button>
-      </div>
+      </Nav>
     </section>
   );
 }
 
-/* ---------------------------------------------------------------- 5 · Your Map */
+/* ------------------------------------------- 6 · Your Map and the conclusion (§3) */
 
-/** Lines that write the result for her real week (spec v2 Part A). */
-function contextLines(r: MapResult): string[] {
-  const keys: string[] = [];
-  if (r.context_treatment === "yes") keys.push("treatment");
-  if (r.context_treatment === "na") keys.push("treatmentNa");
-  if (r.context_caring && !["none", "na"].includes(r.context_caring)) keys.push("caring");
-  if (r.context_support !== null && r.context_support <= 1) keys.push("support");
-  if (typeof r.context_flex === "number" && r.context_flex <= 1) keys.push("flex");
-  return keys;
+function WorkCard({ pillar }: { pillar: Pillar }) {
+  const t = useTranslations();
+  return (
+    <div className="card px-4 py-4">
+      <h3 className="t-pillar">{t(`pillar.${pillar}`)}</h3>
+      <dl className="mt-2 space-y-2">
+        {(["looksLike", "weDo", "towards"] as const).map((field) => (
+          <div key={field}>
+            <dt className="t-label">{t(`result.col.${field}`)}</dt>
+            <dd>{t(`work.${pillar}.${field}`)}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
 }
 
 export function Result({
   headingRef,
   locale,
   result,
+  personal,
   moodTicked,
   animate,
   onContinue,
@@ -554,6 +822,7 @@ export function Result({
   headingRef: HeadingRef;
   locale: Locale;
   result: MapResult;
+  personal: Personal;
   moodTicked: boolean;
   animate: boolean;
   onContinue: () => void;
@@ -561,10 +830,14 @@ export function Result({
 }) {
   const t = useTranslations();
   const scores = scoresOf(result);
-  const focus = result.suggested_focus;
   const [selected, setSelected] = useState<Pillar | null>(null);
   const name = (p: Pillar) => t(`pillar.${p}`);
-  const lines = contextLines(result);
+  const blocks = conclusionBlocks(result, personal);
+  const list = (items: string[]) => new Intl.ListFormat(locale === "pt" ? "pt-BR" : "en", { type: "conjunction" }).format(items);
+  // Answers have their own sentence-fragment wording, so a sentence never swallows a
+  // menu label like "I just want to feel better overall" (review 3, finding 2).
+  const tx = t as unknown as (key: string) => string;
+  const fragments = (prefix: string, codes: string[]) => list(codes.map((code) => tx(`${prefix}.${code}`)));
 
   return (
     <section className="flex flex-col gap-6 pt-2">
@@ -577,78 +850,136 @@ export function Result({
       )}
 
       <div className="card-result flex flex-col gap-6 px-4 py-6 md:px-8">
-        <div>
-          <p className="t-label tnum">{t("result.date", { date: formatDate(result.completed_at, locale) })}</p>
-          <h1 ref={headingRef} tabIndex={-1} className="t-title mt-1 outline-none">
-            {t("result.title")}
-          </h1>
-        </div>
-
-        <div className="-mx-3 md:mx-0">
-          <Wheel scores={scores} animate={animate} selected={selected} onSelect={setSelected} />
-        </div>
-        <p className="t-helper no-print -mt-2 text-center" aria-live="polite">
-          {selected
-            ? t("result.detail", {
-                pillar: name(selected),
-                score: scores[selected],
-                band: t(`band.${bandOf(scores[selected])}`) + ".",
-                step: t(`step.${STEP_OF[selected]}`),
-              })
-            : t("result.tapHint")}
-        </p>
-
-        <div className="flex flex-col gap-3 border-t border-line pt-6">
-          <h2 className="t-pillar !text-2xl">{t("result.focus", { pillar: name(focus) })}</h2>
-          <div>
-            <StepChip step={result.suggested_focus_step} />
-          </div>
-          <p>{t("result.focusStep", { pillar: name(focus), step: t(`step.${result.suggested_focus_step}`) })}</p>
-          <p>{t(`result.startClaim.${focus}`)}</p>
-          <p className="rounded-[12px] bg-plum-100 px-4 py-3">{t("result.decide")}</p>
-        </div>
-
-        {lines.length > 0 && (
-          <div className="flex flex-col gap-2">
-            <h2 className="t-label">{t("result.ctxLabel")}</h2>
-            {lines.map((k) => (
-              <p key={k}>{t(`result.ctx.${k}`)}</p>
-            ))}
-          </div>
-        )}
-
-        <div className="rounded-[12px] bg-rose-100 px-4 py-4">
-          <h2 className="t-label">{t("result.actionLabel")}</h2>
-          <p className="mt-2">{t(`result.action.${focus}`)}</p>
-        </div>
-
-        <div className="flex flex-col gap-4 border-t border-line pt-6">
-          <h2 className="t-label">{t("result.allAreas")}</h2>
-          <Bars scores={scores} priority={focus} />
-          <details className="mt-2">
-            <summary className="link inline-flex min-h-11 items-center">{t("result.seeNumbers")}</summary>
-            <table className="mt-2 w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-line">
-                  <th scope="col" className="py-2 pr-2">{t("result.col.area")}</th>
-                  <th scope="col" className="py-2 pr-2">{t("result.col.step")}</th>
-                  <th scope="col" className="py-2 text-right">{t("result.col.score")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {PILLARS.map((p) => (
-                  <tr key={p} className="border-b border-line">
-                    <th scope="row" className="py-2 pr-2 font-normal">{name(p)}</th>
-                    <td className="py-2 pr-2">{t(`step.${STEP_OF[p]}`)}</td>
-                    <td className="tnum py-2 text-right font-bold">{scores[p]}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </details>
-        </div>
+        {blocks.map((block) => {
+          switch (block.id) {
+            case "map":
+              return (
+                <div key="map" className="flex flex-col gap-4">
+                  <div>
+                    <p className="t-label tnum">{t("result.date", { date: formatDate(result.completed_at, locale) })}</p>
+                    <h1 ref={headingRef} tabIndex={-1} className="t-title mt-1 outline-none">
+                      {block.name ? t("result.hello", { name: block.name }) : t("result.title")}
+                    </h1>
+                  </div>
+                  <div className="-mx-4 md:mx-0">
+                    <Wheel scores={scores} animate={animate} selected={selected} onSelect={setSelected} />
+                  </div>
+                  <p className="t-helper no-print -mt-2 text-center" aria-live="polite">
+                    {selected
+                      ? t("result.detail", {
+                          pillar: name(selected),
+                          score: scores[selected],
+                          band: t(`band.${bandOf(scores[selected])}`) + ".",
+                          step: t(`step.${STEP_OF[selected]}`),
+                        })
+                      : t("result.tapHint")}
+                  </p>
+                  <h2 className="t-label">{t("result.allAreas")}</h2>
+                  <Bars scores={scores} focus={[result.focus_pillar, result.second_pillar]} />
+                  <details>
+                    <summary className="link inline-flex min-h-11 items-center">{t("result.seeNumbers")}</summary>
+                    <table className="mt-2 w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-line">
+                          <th scope="col" className="py-2 pr-2">{t("result.col.area")}</th>
+                          <th scope="col" className="py-2 pr-2">{t("result.col.step")}</th>
+                          <th scope="col" className="py-2 text-right">{t("result.col.score")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {PILLARS.map((p) => (
+                          <tr key={p} className="border-b border-line">
+                            <th scope="row" className="py-2 pr-2 font-normal">{name(p)}</th>
+                            <td className="py-2 pr-2">{t(`step.${STEP_OF[p]}`)}</td>
+                            <td className="tnum py-2 text-right font-bold">{scores[p]}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </details>
+                </div>
+              );
+            case "focus":
+              return (
+                <div key="focus" className="flex flex-col gap-3 border-t border-line pt-6">
+                  <h2 className="t-pillar !text-2xl">
+                    {t(block.strong ? "result.focusAllStrong" : "result.focus", { a: name(block.a), b: name(block.b) })}
+                  </h2>
+                  {[block.a, block.b].map((p) => (
+                    <p key={p}>
+                      <strong className="font-normal text-plum-700">{name(p)}:</strong> {t(`band.${bandOf(scores[p])}`)}.
+                    </p>
+                  ))}
+                  <div className="flex flex-wrap gap-2">
+                    {[...new Set([STEP_OF[block.a], STEP_OF[block.b]])].map((step) => (
+                      <StepChip key={step} step={step} />
+                    ))}
+                  </div>
+                </div>
+              );
+            case "allStrong":
+              return <p key="allStrong">{t("result.allStrong")}</p>;
+            case "connection":
+              return (
+                <p key="connection">
+                  {t("result.connection", {
+                    topics: fragments("topicIn", block.topics),
+                    topic: tx(`topicIn.${block.topics[0]}`),
+                    a: name(block.a),
+                    b: name(block.b),
+                    phrase: t(`phrase.${block.a}`),
+                  })}
+                </p>
+              );
+            case "notYou":
+              return (
+                <p key="notYou">
+                  {block.nothingTried || block.tried.length === 0
+                    ? t("result.notYouNothing")
+                    : t("result.notYou", {
+                        tried: fragments("triedIn", block.tried),
+                        obstacles: fragments("obstacleIn", block.obstacles),
+                      })}
+                </p>
+              );
+            case "howWeWork":
+              return (
+                <div key="howWeWork" className="flex flex-col gap-3 border-t border-line pt-6">
+                  <h2 className="t-label">{t("result.howWeWork")}</h2>
+                  {block.pillars.map((p) => (
+                    <WorkCard key={p} pillar={p} />
+                  ))}
+                </div>
+              );
+            case "begin":
+              return (
+                <div key="begin" className="flex flex-col gap-2">
+                  <p>{t("result.begin", { a: name(block.a) })}</p>
+                  {block.focusIsClaim && <p>{t("result.beginIsClaim")}</p>}
+                  {block.inTreatment && <p>{t("result.beginTreatment")}</p>}
+                </div>
+              );
+            case "herWords":
+              return (
+                <div key="herWords" className="flex flex-col gap-2 rounded-[12px] bg-plum-100 px-4 py-4">
+                  {block.vision && <p>{t("result.herWords", { vision: block.vision })}</p>}
+                  {block.duration && (
+                    <p>{t("result.herWordsDuration", { duration: tx(`durationFor.${block.duration}`) })}</p>
+                  )}
+                </div>
+              );
+            default:
+              return (
+                <div key="thisWeek" className="rounded-[12px] bg-rose-100 px-4 py-4">
+                  <h2 className="t-label">{t("result.actionLabel")}</h2>
+                  <p className="mt-2">{t(`practice.${block.a}`)}</p>
+                </div>
+              );
+          }
+        })}
 
         <div className="space-y-2 border-t border-line pt-4">
+          <p>{t("result.decide")}</p>
           <p className="t-helper">{t("result.reminder")}</p>
           <Disclaimer />
         </div>
@@ -667,30 +998,59 @@ export function Result({
   );
 }
 
-/* --------------------------------------------------------------- 6 · What next */
+/* --------------------------------------------------------------- 7 · The paths */
 
-export function WhatNext({ headingRef, result, onBack }: { headingRef: HeadingRef; result: MapResult; onBack: () => void }) {
+export function Paths({ headingRef, result, onBack }: { headingRef: HeadingRef; result: MapResult; onBack: () => void }) {
   const t = useTranslations();
-  const pillar = t(`pillar.${result.suggested_focus}`);
+  const rows = ["promise", "length", "covers", "continues", "forYou"] as const;
   return (
-    <section className="flex flex-1 flex-col gap-6 pt-6">
+    <section className="flex flex-1 flex-col gap-6 pt-2">
       <h1 ref={headingRef} tabIndex={-1} className="t-title outline-none">
-        {t("next.title")}
+        {t("paths.title")}
       </h1>
-      <p className="text-lg">{t("next.lead", { pillar })}</p>
-      <div className="flex flex-col items-center gap-3 md:items-start">
-        <a href={PATHWAY_URL[result.suggested_focus]} className="btn btn-primary">
-          {t("next.primary", { pillar })}
-        </a>
-        <a href={PROGRAMME_URL} className="link inline-flex min-h-11 items-center">
-          {t("next.secondary")}
-        </a>
+      <p className="text-lg">{t("paths.lead")}</p>
+      <div className="flex flex-col gap-4">
+        {PATHS_ALL.map((path: Path) => {
+          const suggested = path === result.recommended_path;
+          return (
+            <article
+              key={path}
+              className={"card px-4 py-4" + (suggested ? " !border-2 !border-rose-600 bg-rose-100" : "")}
+              aria-labelledby={`path-${path}`}
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 id={`path-${path}`} className="t-pillar !text-xl">
+                  {t(`path.${path}.name`)}
+                </h2>
+                {suggested && <span className="chip text-ink">{t("paths.recommended")}</span>}
+              </div>
+              <dl className="mt-2 space-y-2">
+                {rows.map((row) => (
+                  <div key={row}>
+                    <dt className="t-label">{t(`paths.col.${row}`)}</dt>
+                    <dd>{t(`path.${path}.${row}`)}</dd>
+                  </div>
+                ))}
+                <div>
+                  <dt className="t-label">{t("paths.col.price")}</dt>
+                  <dd>{t("paths.priceTbc")}</dd>
+                </div>
+              </dl>
+            </article>
+          );
+        })}
       </div>
-      <p className="t-helper">{t("next.emailSoon")}</p>
+      <p className="card px-4 py-3 text-sm" role="note">
+        {t("paths.soon")}
+      </p>
+      <div className="card px-4 py-4">
+        <h2 className="t-pillar !text-xl">{t("paths.keepMap")}</h2>
+        <p className="mt-2">{t("paths.keepMapNote")}</p>
+      </div>
       <div className="mt-auto pt-6">
         <button type="button" className="link inline-flex min-h-11 items-center" onClick={onBack}>
           <span aria-hidden="true">←&nbsp;</span>
-          {t("next.back")}
+          {t("paths.back")}
         </button>
       </div>
     </section>
