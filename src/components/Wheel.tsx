@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { PILLARS, STEP_OF, bandOf, type Pillar, type Scores } from "@/lib/scoring";
+import { TIGHT_HYSTERESIS, WHEEL, wheelLayout } from "@/lib/sentences";
 
 /**
  * The Pillar Wheel (spec §7): six equal 60° segments in fixed method order, clockwise,
@@ -14,10 +15,7 @@ import { PILLARS, STEP_OF, bandOf, type Pillar, type Scores } from "@/lib/scorin
 const VB = 200; // SVG viewBox size
 const C = VB / 2;
 const R = 96; // full radius in viewBox units (room for the ring stroke)
-const GAP = 4; // px between the ring and a label
-const MAX_R = 170; // px, wheel radius cap on wide screens
-const MIN_R = 64;
-const COS30 = Math.cos(Math.PI / 6);
+const GAP = WHEEL.gap; // px between the ring and a label
 
 /** Angle (degrees, clockwise from the top) at the middle of segment i. */
 const midAngle = (i: number) => i * 60;
@@ -38,7 +36,7 @@ function wedge(i: number, score: number): string | null {
 type Side = "top" | "right" | "bottom" | "left";
 const SIDE: Side[] = ["top", "right", "right", "bottom", "left", "left"];
 
-type Layout = { width: number; r: number; cx: number; cy: number; height: number };
+type Layout = { width: number; r: number; cx: number; cy: number; height: number; fits: boolean };
 
 export function Wheel({
   scores,
@@ -55,6 +53,13 @@ export function Wheel({
   const boxRef = useRef<HTMLDivElement>(null);
   const labelRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [layout, setLayout] = useState<Layout | null>(null);
+  // Smaller labels on a screen too narrow for the full ones. Leaving that state needs room
+  // to spare, so the two sizes cannot take turns on the same screen.
+  const [tight, setTight] = useState(false);
+  // The widths of the full-size labels. Whether to shrink them is always judged against
+  // these, never against the shrunken ones — otherwise the two sizes take turns.
+  const fullLabelWidths = useRef<number[] | null>(null);
+  const tightRef = useRef(false);
 
   // Size the wheel to the room the real (Portuguese or English) labels leave.
   const measure = useCallback(() => {
@@ -63,15 +68,10 @@ export function Wheel({
     const width = box.clientWidth;
     const w = labelRefs.current.map((el) => el?.offsetWidth ?? 0);
     const h = labelRefs.current.map((el) => el?.offsetHeight ?? 0);
-    const leftMax = Math.max(w[4], w[5]);
-    const rightMax = Math.max(w[1], w[2]);
-    const r = Math.max(MIN_R, Math.min(MAX_R, (width - leftMax - rightMax) / (2 * COS30) - GAP));
-    const spread = COS30 * (r + GAP);
-    const slack = Math.max(0, width - leftMax - rightMax - 2 * spread);
-    const cx = leftMax + spread + slack / 2;
-    const cy = h[0] + GAP + r;
-    const height = cy + r + GAP + h[3];
-    setLayout({ width, r, cx, cy, height });
+    if (!tightRef.current) fullLabelWidths.current = w;
+    const full = wheelLayout(width, fullLabelWidths.current ?? w, h);
+    setLayout({ width, ...wheelLayout(width, w, h) });
+    setTight((was) => (was ? full.ideal < WHEEL.min + TIGHT_HYSTERESIS : !full.fits));
   }, []);
 
   // The labels change with the language, and a switch happens in place, so the sizes are
@@ -84,8 +84,31 @@ export function Wheel({
     // Labels change size when the language switches in place; re-measure then too.
     labelRefs.current.forEach((el) => el && ro.observe(el));
     document.fonts?.ready.then(measure).catch(() => {});
-    return () => ro.disconnect();
+    // Turning the phone sideways, or any other window change: some browsers do not deliver
+    // the observer's callback for those, so the window is watched as well.
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+    };
   }, [measure, labelText]);
+
+  // The labels change size one render after the switch, so the layout is taken again once
+  // the new sizes are on screen.
+  useLayoutEffect(() => {
+    tightRef.current = tight;
+    // Two frames: one for the browser to apply the new label size, one to measure it.
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(measure);
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, [tight, measure]);
 
   function labelStyle(i: number): React.CSSProperties {
     if (!layout) return { position: "absolute", left: 0, top: 0, visibility: "hidden" };
@@ -107,7 +130,7 @@ export function Wheel({
   return (
     <div
       ref={boxRef}
-      className="relative w-full"
+      className={"relative w-full" + (tight ? " wheel-tight" : "")}
       style={{ height: layout?.height ?? 320 }}
       role="group"
       aria-label={t("result.wheelLabel")}

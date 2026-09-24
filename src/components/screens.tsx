@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { Bars } from "@/components/Bars";
 import { Wheel } from "@/components/Wheel";
 import { conclusionBlocks, type Personal } from "@/lib/conclusion";
+import { joinFragments, quoteReady } from "@/lib/sentences";
 import { PATHS, formatDate, type Locale } from "@/lib/i18n";
 import {
   AGE_BANDS,
@@ -25,6 +26,7 @@ import {
   bandOf,
   pillarOfQuestion,
   scoresOf,
+  triedNothing,
   type Answer,
   type Context,
   type Journey,
@@ -689,7 +691,11 @@ export function JourneyScreen({
     );
   }
 
-  const progress = <Progress n={pos} total={5} label={t("question.progressLabel", { n: pos, total: 5 })} />;
+  // When "nothing yet" skips J2, she sees four questions, not five, so the count says four.
+  const skipsJ2 = triedNothing(journey);
+  const total = skipsJ2 ? 4 : 5;
+  const shown = skipsJ2 && pos >= 3 ? pos - 1 : pos;
+  const progress = <Progress n={shown} total={total} label={t("question.progressLabel", { n: shown, total })} />;
   const common = { headingRef, label: t("journey.label"), progress, onNext, onBack };
   const consent = (
     <>
@@ -833,7 +839,7 @@ export function Result({
   const [selected, setSelected] = useState<Pillar | null>(null);
   const name = (p: Pillar) => t(`pillar.${p}`);
   const blocks = conclusionBlocks(result, personal);
-  const list = (items: string[]) => new Intl.ListFormat(locale === "pt" ? "pt-BR" : "en", { type: "conjunction" }).format(items);
+  const list = (items: string[]) => joinFragments(locale, items);
   // Answers have their own sentence-fragment wording, so a sentence never swallows a
   // menu label like "I just want to feel better overall" (review 3, finding 2).
   const tx = t as unknown as (key: string) => string;
@@ -962,7 +968,7 @@ export function Result({
             case "herWords":
               return (
                 <div key="herWords" className="flex flex-col gap-2 rounded-[12px] bg-plum-100 px-4 py-4">
-                  {block.vision && <p>{t("result.herWords", { vision: block.vision })}</p>}
+                  {block.vision && <p>{t("result.herWords", { vision: quoteReady(block.vision) })}</p>}
                   {block.duration && (
                     <p>{t("result.herWordsDuration", { duration: tx(`durationFor.${block.duration}`) })}</p>
                   )}
