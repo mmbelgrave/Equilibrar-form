@@ -22,8 +22,8 @@ import {
   type MapResult,
 } from "./scoring.ts";
 
-export type Screen = "welcome" | "about" | "flow" | "journey" | "checkin" | "result" | "paths";
-export const SCREENS: Screen[] = ["welcome", "about", "flow", "journey", "checkin", "result", "paths"];
+export type Screen = "welcome" | "about" | "flow" | "journey" | "checkin" | "result" | "paths" | "confirm";
+export const SCREENS: Screen[] = ["welcome", "about", "flow", "journey", "checkin", "result", "paths", "confirm"];
 
 /** "about": intro + C0–C8 = 0…9. "flow": 6 dividers + 24 statements = 0…29. "journey": divider + J1–J5 = 0…5. */
 export const ABOUT_LENGTH = 10;
@@ -37,6 +37,7 @@ export const SCREEN_LENGTH: Record<Screen, number> = {
   checkin: 1,
   result: 1,
   paths: 1,
+  confirm: 1,
 };
 
 export type SavedState = {
@@ -135,7 +136,7 @@ export function parseState(raw: string | null): { state: SavedState; resultLost:
   const result = parseResult(s.result);
   const resultLost = s.result != null && result === null;
   let screen = SCREENS.includes(s.screen as Screen) ? (s.screen as Screen) : "welcome";
-  if ((screen === "result" || screen === "paths") && !result) screen = "welcome";
+  if ((screen === "result" || screen === "paths" || screen === "confirm") && !result) screen = "welcome";
   const max = SCREEN_LENGTH[screen];
   const pos = Number.isInteger(s.pos) && (s.pos as number) >= 0 && (s.pos as number) < max ? (s.pos as number) : 0;
   return {

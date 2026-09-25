@@ -3,11 +3,14 @@
 import { NextIntlClientProvider } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Header } from "@/components/Header";
-import { About, CheckIn, Divider, JourneyScreen, Paths, Question, Result, Welcome } from "@/components/screens";
+import { About, CheckIn, Divider, JourneyScreen, Paths, PrintButtons, Question, Result, Welcome } from "@/components/screens";
+import { Confirmation, ShareForm } from "@/components/Share";
+import { enabled as dbEnabled, saveProgress, saveResult, startMap, type Step as DbStep } from "@/lib/db";
 import type { Personal } from "@/lib/conclusion";
 import { FLAT_MESSAGES, HTML_LANG, MESSAGES, PATHS, type Locale } from "@/lib/i18n";
 import {
   CONTEXT_KEYS,
+  PILLARS,
   QUESTIONS_PER_PILLAR,
   QUESTION_COUNT,
   buildResult,
@@ -15,9 +18,12 @@ import {
   isComplete,
   journeyComplete,
   triedNothing,
+  scorePillars,
   type Answer,
   type Context,
   type Journey,
+  type Path,
+  type Scores,
 } from "@/lib/scoring";
 import {
   ABOUT_LENGTH,
@@ -65,6 +71,17 @@ const inProgress = (s: SavedState) =>
   s.journey.tried.length > 0 ||
   s.personal.name !== "";
 
+/** Each pillar's score, for the ones she has finished — what is saved as she goes. */
+function scoresSoFar(answers: SavedState["answers"]): Partial<Scores> {
+  const done: Partial<Scores> = {};
+  const full = answers.map((a) => a ?? 0);
+  PILLARS.forEach((pillar, p) => {
+    const four = answers.slice(p * QUESTIONS_PER_PILLAR, (p + 1) * QUESTIONS_PER_PILLAR);
+    if (four.every((a) => a !== null)) done[pillar] = scorePillars(full as Answer[])[pillar];
+  });
+  return done;
+}
+
 export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   const [locale, setLocale] = useState<Locale>(initialLocale);
   const [state, setState] = useState<SavedState | null>(null); // null = not read from storage yet
@@ -75,6 +92,11 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   const [suggestOther, setSuggestOther] = useState(false);
   // Whether the mood line was ticked lives in memory only, never in storage (spec §6).
   const [moodTicked, setMoodTicked] = useState(false);
+  // Phase 2: the anonymous row in Rê's database, the card she picked, and whether she has
+  // shared. None of this exists until a database is configured.
+  const [mapId, setMapId] = useState<string | null>(null);
+  const [chosenPath, setChosenPath] = useState<Path | null>(null);
+  const mapIdRef = useRef<string | null>(null); // the same id, readable inside the effects
 
   // Read saved progress once, on the client.
   useEffect(() => {
@@ -206,6 +228,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
         case "checkin":
           return { ...s, screen: "journey", pos: JOURNEY_LENGTH - 1 };
         case "paths":
+        case "confirm":
           return { ...s, screen: "result", pos: 0 };
         case "result":
           return { ...s, screen: "welcome", pos: 0 };
@@ -266,6 +289,46 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
       return { ...s, screen: "result", pos: 0, result, animated: false };
     });
   }
+
+  // Saving as she goes (spec v4 §12), so Rê can see Maps that were started and not
+  // finished. Anonymous: coded answers and finished pillar scores only — never her name,
+  // her own words, the 24 individual answers or the check-in. Failures are ignored: her
+  // own copy, on her own device, is the one that matters.
+  const dbStep = (screen: Screen): DbStep =>
+    screen === "flow" ? "pillars" : screen === "confirm" ? "paths" : (screen as DbStep);
+  const savedStep = useRef<string>("");
+  useEffect(() => {
+    if (!dbEnabled || !state || state.screen === "welcome") return;
+    const scores = scoresSoFar(state.answers);
+    const fingerprint = JSON.stringify([
+      dbStep(state.screen),
+      state.context,
+      state.journey,
+      Object.keys(scores).length,
+      locale,
+    ]);
+    if (fingerprint === savedStep.current) return;
+    savedStep.current = fingerprint;
+    (async () => {
+      const id = mapIdRef.current ?? (await startMap(locale));
+      if (!id) return;
+      if (mapIdRef.current !== id) {
+        mapIdRef.current = id;
+        setMapId(id);
+      }
+      await saveProgress(id, locale, dbStep(state.screen), state.context, state.journey, scores);
+    })();
+  }, [state, locale]);
+
+  // Her finished result, still anonymous, so the completion figures are right even when she
+  // never shares.
+  const savedResult = useRef<string | null>(null);
+  useEffect(() => {
+    if (!dbEnabled || !state?.result || !mapIdRef.current) return;
+    if (savedResult.current === state.result.submission_id) return;
+    savedResult.current = state.result.submission_id;
+    void saveResult(mapIdRef.current, state.result);
+  }, [state?.result]);
 
   // The wheel animates once, on the first render of a result — never again.
   useEffect(() => {
@@ -336,6 +399,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                     go(r.screen, r.pos);
                   }}
                   onSeeResult={() => go("result")}
+                  saving={dbEnabled}
                 />
               )}
               {state.screen === "about" && (
@@ -397,7 +461,43 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                 />
               )}
               {state.screen === "paths" && state.result && (
-                <Paths headingRef={headingRef} result={state.result} onBack={back} />
+                <Paths
+                  headingRef={headingRef}
+                  result={state.result}
+                  chosen={chosenPath}
+                  onChoose={setChosenPath}
+                  onBack={back}
+                  form={
+                    chosenPath ? (
+                      <ShareForm
+                        mapId={mapId}
+                        chosenPath={chosenPath}
+                        personal={state.personal}
+                        onShared={() => {
+                          update((s) => ({
+                            ...s,
+                            screen: "confirm",
+                            pos: 0,
+                            result: s.result ? { ...s.result, chosen_path: chosenPath } : s.result,
+                          }));
+                        }}
+                      />
+                    ) : (
+                      <p className="card px-4 py-3 text-sm" role="note">
+                        {FLAT_MESSAGES[locale][dbEnabled ? "paths.lead" : "paths.soon"]}
+                      </p>
+                    )
+                  }
+                />
+              )}
+              {state.screen === "confirm" && state.result && (
+                <Confirmation
+                  headingRef={headingRef}
+                  result={state.result}
+                  personal={state.personal}
+                  onBack={() => go("result", 0, "back")}
+                  printButtons={<PrintButtons />}
+                />
               )}
             </div>
           )}

@@ -82,12 +82,21 @@ test("the four spec fonts are self-hosted files in the repo", () => {
   assert.match(fonts, /next\/font\/local/);
 });
 
+// Phase 2 adds exactly two outside addresses, both from the spec: Rê's own Supabase project
+// (only when configured, and only for saving and sharing) and the wa.me link she taps to
+// message Rê. Anything else — fonts, analytics, trackers — is still forbidden.
+const ALLOWED_HOSTS = [/wa.me/, /supabase/];
+
 test("no Google Fonts or other third-party URLs in the source", () => {
   const walk = (d: string): string[] =>
     readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]));
   for (const f of walk(fileURLToPath(new URL("../src/", import.meta.url)))) {
     if (!/\.(ts|tsx|css|json)$/.test(f)) continue; // the fonts' open licence text names its own URL
     const src = readFileSync(f, "utf8");
-    assert.ok(!/fonts\.googleapis|fonts\.gstatic|https?:\/\/(?!www\.w3\.org)/.test(src), `${f} calls out`);
+    for (const call of [...src.matchAll(/https?:\/\/[^\s"'`]+/g)].map((m) => m[0])) {
+      if (/www\.w3\.org/.test(call) || ALLOWED_HOSTS.some((host) => host.test(call))) continue;
+      assert.fail(`${f} calls out to ${call}`);
+    }
+    assert.ok(!/fonts\.googleapis|fonts\.gstatic/.test(src), `${f} loads fonts from Google`);
   }
 });

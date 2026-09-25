@@ -378,12 +378,15 @@ export function Welcome({
   onStart,
   onResume,
   onSeeResult,
+  saving,
 }: {
   headingRef: HeadingRef;
   locale: Locale;
   notFound: boolean;
   inProgress: boolean;
   hasResult: boolean;
+  /** True once Rê's database is configured: progress is then saved anonymously (§12). */
+  saving?: boolean;
   onStart: () => void;
   onResume: () => void;
   onSeeResult: () => void;
@@ -454,6 +457,7 @@ export function Welcome({
       </div>
       <div className="card mt-auto space-y-2 px-4 py-4">
         <Disclaimer />
+        {saving && <p className="t-helper">{t("welcome.saving")}</p>}
         <p className="t-helper">{t("welcome.adults")}</p>
         <p className="t-helper">
           <a href={PATHS[locale].privacy} className="link">
@@ -1050,7 +1054,22 @@ export function PrintButtons() {
 
 /* --------------------------------------------------------------- 7 · The paths */
 
-export function Paths({ headingRef, result, onBack }: { headingRef: HeadingRef; result: MapResult; onBack: () => void }) {
+export function Paths({
+  headingRef,
+  result,
+  chosen,
+  onChoose,
+  onBack,
+  form,
+}: {
+  headingRef: HeadingRef;
+  result: MapResult;
+  chosen: Path | null;
+  onChoose: (path: Path | null) => void;
+  onBack: () => void;
+  /** The contact form and "Share my Map with Rê" (only once a path is chosen). */
+  form: React.ReactNode;
+}) {
   const t = useTranslations();
   const rows = ["promise", "length", "covers", "continues", "forYou"] as const;
   return (
@@ -1086,15 +1105,22 @@ export function Paths({ headingRef, result, onBack }: { headingRef: HeadingRef; 
                   <dd>{t("paths.priceTbc")}</dd>
                 </div>
               </dl>
+              <button
+                type="button"
+                className={"no-print mt-4 " + (chosen === path ? "btn btn-primary" : "btn btn-secondary")}
+                aria-pressed={chosen === path}
+                onClick={() => onChoose(chosen === path ? null : path)}
+              >
+                {chosen === path ? t("paths.chosen") : t("paths.choose")}
+              </button>
             </article>
           );
         })}
       </div>
-      <p className="card px-4 py-3 text-sm" role="note">
-        {t("paths.soon")}
-      </p>
+      {form}
+
       <div className="card px-4 py-4">
-        <h2 className="t-pillar !text-xl">{t("paths.keepMap")}</h2>
+        <h2 className="t-pillar !text-xl">{t("paths.keepMapOnly")}</h2>
         <p className="mt-2">{t("paths.keepMapNote")}</p>
       </div>
       <div className="mt-auto pt-6">

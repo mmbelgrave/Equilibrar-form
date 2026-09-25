@@ -147,6 +147,7 @@ test("every sentence with placeholders has a value for each of them on screen", 
     "question.progress": ["n", "total"],
     "question.progressLabel": ["n", "total"],
     "step.chip": ["n", "step"],
+    "confirm.whatsappText": ["name"],
   };
   for (const l of LOCALES) {
     for (const [k, v] of Object.entries(M[l])) {

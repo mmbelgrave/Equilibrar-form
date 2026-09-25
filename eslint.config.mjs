@@ -11,6 +11,8 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     ".next-export/**",
+    // Runs inside Supabase on Deno, with its own toolchain.
+    "supabase/functions/**",
     "build/**",
     "next-env.d.ts",
     // The preview-mode build (scripts/preview-mode.cjs) and that CommonJS launcher.
