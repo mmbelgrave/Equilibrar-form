@@ -111,10 +111,20 @@ create table if not exists public.admins (
 -- The address has to be one Supabase has proved, not one merely claimed in a token: if
 -- email confirmations were ever switched off in the project, an unverified address could
 -- otherwise name itself an admin (review 5, finding 7).
+--
+-- It asks the account table directly rather than trusting the token's own description of
+-- itself. The first version read `user_metadata.email_verified`, which accounts made by
+-- hand in the Supabase dashboard do not always carry — so Rê would have been refused even
+-- though she was on the list. `email_confirmed_at` is set however the account was made.
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = public as $fn$
-  select coalesce((auth.jwt() -> 'user_metadata' ->> 'email_verified')::boolean, false)
-     and exists (select 1 from public.admins a where a.email = auth.jwt() ->> 'email');
+  select exists (
+    select 1
+      from auth.users u
+      join public.admins a on lower(a.email) = lower(u.email)
+     where u.id = auth.uid()
+       and u.email_confirmed_at is not null
+  );
 $fn$;
 
 -- ------------------------------------------------------------ the rules ------------
