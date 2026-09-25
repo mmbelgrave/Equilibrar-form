@@ -95,13 +95,20 @@ create table if not exists public.contacts (
 
 -- Her 24 statement answers, 0–4 each, in question order. They live here and never on
 -- `maps`, because that is the whole point: while she is answering, the individual answers
--- stay on her own device and only the six scores are saved. They travel only when she
--- presses Share and ticks the first consent — Rê reads them with her in the first
--- conversation, which is what the answers are for.
+-- stay on her own device and only the six scores are saved.
+--
+-- They travel only when she presses Share AND ticks a second, optional box of their own.
+-- Sharing does not require it: these are health answers sitting beside her name, which §13
+-- treats as a heavier thing than the six scores, so consent for them has to be a real
+-- choice rather than the price of reaching Rê at all (review 6, finding 1).
 alter table public.contacts add column if not exists answers smallint[];
 alter table public.contacts drop constraint if exists contacts_answers_shape;
 alter table public.contacts add constraint contacts_answers_shape
-  check (answers is null or (array_length(answers, 1) = 24 and 0 <= all (answers) and 4 >= all (answers)));
+  check (answers is null or (
+    array_length(answers, 1) = 24
+    and array_position(answers, null) is null  -- `0 <= all` yields NULL, not false, on a null
+    and 0 <= all (answers) and 4 >= all (answers)
+  ));
 
 create index if not exists contacts_map_id_idx on public.contacts (map_id);
 
@@ -254,8 +261,16 @@ begin
     left(p_first_name, 60), left(btrim(p_email), 254), left(p_whatsapp, 40), left(p_instagram, 60),
     true, coalesce(p_consent_email, false),
     left(p_vision, 2000), left(p_question, 2000),
+    -- `with ordinality … order by` because here the position IS the meaning: element i is
+    -- her answer to question i+1, and Rê reads them against the statements in that order.
+    -- Postgres would almost certainly preserve it anyway; "almost certainly" is not what
+    -- you want behind a conversation about somebody's health (review 6, finding 7).
     case when jsonb_typeof(p_answers) = 'array' and jsonb_array_length(p_answers) = 24
-         then array(select (jsonb_array_elements_text(p_answers))::smallint)
+         then array(
+           select value::smallint
+             from jsonb_array_elements_text(p_answers) with ordinality as t(value, position)
+            order by position
+         )
          else null end
   );
 end;

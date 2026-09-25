@@ -288,9 +288,10 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
         context: s.context,
         journey: s.journey,
       });
-      // Everything she typed or answered stays on this device only: her name and her own
-      // words write the conclusion, and the 24 answers let her print her full Map (v4 §12).
-      // None of it is ever sent; what leaves the device is the coded result object.
+      // Everything she typed or answered stays on this device: her name and her own words
+      // write the conclusion, and the 24 answers let her print her full Map (v4 §12).
+      // Nothing here is sent by finishing. Her name and the details she types go to Rê only
+      // if she shares, and the 24 answers only if she also ticks the box for them.
       return { ...s, screen: "result", pos: 0, result, animated: false };
     });
   }

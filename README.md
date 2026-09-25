@@ -19,10 +19,18 @@ It is a lifestyle tool, not a medical one, and it says so on screen in both lang
 
 ## Privacy by design
 
-Nothing leaves the visitor's device. There is no account, no cookie, no analytics and no
-third-party request; the fonts are part of this repository. While she answers, her answers
-are kept in her own browser; when the Map is ready the 24 answers and anything she wrote in
-her own words are deleted, and only the six scores and her coded context answers remain.
+There is no account, no cookie, no analytics and no third-party request; the fonts are part
+of this repository.
+
+While she answers, everything is kept in her own browser. What reaches the database is
+anonymous: her context and journey answers as codes, and a pillar score once its four
+statements are done. Her name, anything she wrote in her own words, her 24 individual
+answers and the health check-in stay on her device.
+
+She becomes a person only when she presses "Share my Map with Rê". Her name, her email and
+what she typed on that form go then. Her own words and her 24 individual answers each need
+their own tick, and sharing works without either. The check-in never leaves her device,
+under any circumstance.
 
 ## Running it
 

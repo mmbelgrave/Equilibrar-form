@@ -200,11 +200,29 @@ test("nothing promises the PDF or the email sequence before they exist", () => {
   }
 });
 
-test("the consent box says her answers go too, because they do (§13)", () => {
-  // They used to stay on her device for good. Now they travel when she shares, so that Rê
-  // can read them with her — the words she ticks have to say so.
+test("her 24 answers have a consent of their own, separate from sharing (§13)", () => {
+  // They are health answers beside her name, so sharing must not be the price of handing
+  // them over (review 6, finding 1). The box that lets her share says nothing about them.
   for (const [locale, messages] of Object.entries({ pt, en })) {
-    assert.match(messages["contact.consentShare"], /respostas|answers/i, `${locale} contact.consentShare`);
+    assert.ok(messages["contact.consentAnswers"], `${locale} needs its own answers consent`);
+    assert.match(messages["contact.consentAnswers"], /24/, `${locale} should say what it covers`);
+    assert.doesNotMatch(
+      messages["contact.consentShare"],
+      /24|respostas uma a uma|individual answers/i,
+      `${locale}: the box she must tick to share cannot also cover the answers`,
+    );
     assert.match(messages["privacy.p6Share"], /24/, `${locale} privacy.p6Share should name the 24 answers`);
+  }
+});
+
+test("no paragraph promises the 24 answers stay on her device for good", () => {
+  // Round 5 finding 1 in the other direction: p1Saving is about what is saved WHILE she
+  // answers, which is still true and narrow. It must not read as a promise for all time.
+  for (const [locale, messages] of Object.entries({ pt, en })) {
+    assert.doesNotMatch(
+      messages["privacy.p1Saving"],
+      /ficam só no seu aparelho|stay on your device$/i,
+      `${locale}: p1Saving overreaches — p6Share says they go to Rê`,
+    );
   }
 });

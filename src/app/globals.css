@@ -169,20 +169,33 @@ body {
 .tex-line { stroke: var(--color-ink); }
 
 /* Forced colours (high contrast mode) has no colours to give, so the step is carried by
-   three textures at 45°, 90°, 135° instead. Printing keeps the real colours: the printed
-   Map is the thing Rê puts in front of a woman, and it should look like the brand. */
+   three textures at 45°, 90°, 135° instead. */
 @media (forced-colors: active) {
   .fill-claim { fill: url(#tex-claim); }
   .fill-recover { fill: url(#tex-recover); }
   .fill-build { fill: url(#tex-build); }
+}
+
+/* Paper gets both. The colours are the brand and the Map should look like it, but claim
+   and recover fall within 4% of each other once a one-cartridge printer turns them grey,
+   and colour is the only thing on the wheel that says which step a wedge belongs to. The
+   texture is drawn over the colour rather than instead of it (review 6, finding 8). */
+.seg-texture-claim, .seg-texture-recover, .seg-texture-build { display: none; }
+@media print {
+  .seg-texture-claim { display: inline; fill: url(#tex-claim); opacity: 0.38; }
+  .seg-texture-recover { display: inline; fill: url(#tex-recover); opacity: 0.38; }
+  .seg-texture-build { display: inline; fill: url(#tex-build); opacity: 0.38; }
 }
 @media (forced-colors: active) {
   .tex-line { stroke: CanvasText; }
   .bar-fill { background: CanvasText !important; forced-color-adjust: none; }
   .chip-dot { forced-color-adjust: none; background: CanvasText; }
 }
-/* Her answers are only on the page while "Print my full Map" is printing. */
+/* Her answers are only on the page while "Print my full Map" is printing, and the closing
+   line only on paper. Both are hidden here, above the @media print block that shows them:
+   a media query adds no specificity, so a rule written after it would win instead. */
 .print-only { display: none; }
+.print-footer { display: none; }
 
 @media print {
   @page { size: A4; margin: 14mm 13mm 16mm; }
@@ -198,7 +211,9 @@ body {
   details { display: none; } /* "see the numbers" — the table is in the full print instead */
 
   /* The logo band is the masthead of the printed Map. */
-  .band { padding: 5mm 0 4mm; margin-bottom: 5mm; border-bottom: 1.5pt solid var(--color-rose-600); }
+  /* The rule is plum, not rose: a rose line along the bottom of a rose band is an edge,
+     not a rule (review 6, finding 9). */
+  .band { padding: 5mm 0 4mm; margin-bottom: 5mm; border-bottom: 1.5pt solid var(--color-plum-700); }
 
   /* On screen the result sits on a white card over the rose page; on paper the page is
      already white, so the card is nothing but a box. The conclusion cards inside it keep
@@ -227,16 +242,15 @@ body {
     padding: 3px 6px; break-inside: avoid;
     border-bottom: 1px solid var(--color-line);
   }
-  .print-rows > div:nth-child(odd) { background: var(--color-rose-50); }
+  /* rose-50 is 249 against white's 255 — a tint on screen, nothing at all on paper.
+     rose-100 is 239, still a tint and not a block (review 6, finding 9). */
+  .print-rows > div:nth-child(odd) { background: var(--color-rose-100); }
   .print-rows dt { color: var(--color-ink); }
   .print-rows dd { margin: 0; font-weight: 700; text-align: right; color: var(--color-plum-700); }
 
   /* The closing line, on the last page of each print. */
   .print-footer { display: block; margin-top: 8mm; padding-top: 3mm; border-top: 1px solid var(--color-line); }
 }
-
-/* The footer belongs to paper only. */
-.print-footer { display: none; }
 
 /* Only the full print carries her answers. */
 html.printing-full .print-only { display: block; }

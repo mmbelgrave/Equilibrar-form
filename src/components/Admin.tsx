@@ -108,7 +108,10 @@ const T = {
   print: "Imprimir este Mapa",
   printHint: "Escolha “Salvar como PDF” para guardar o Mapa dela antes da conversa.",
   answersTitle: "As respostas dela",
-  noAnswers: "Este Mapa foi compartilhado antes de as respostas serem guardadas, então só as pontuações estão aqui.",
+  noAnswersShared:
+    "Não há respostas uma a uma neste Mapa: ou ela não marcou a caixa que deixa você vê-las, ou o Mapa é anterior a essa caixa existir. Pode pedir na conversa, se fizer sentido.",
+  answersBroken: "As respostas chegaram incompletas. Vale avisar quem cuida do sistema.",
+  answersCodes: "O que ela respondeu sobre a vida dela",
   pillarOf: (n: number) => `Pilar ${n} de 6`,
   waiting: "Esperando resposta há mais de 48 horas",
   sinceShared: (days: number) => (days < 1 ? "Compartilhou hoje" : `Compartilhou há ${Math.floor(days)} dia(s)`),
@@ -140,6 +143,15 @@ const asJourney = (m: AdminMap): Journey => ({
   obstacles: (m.obstacles ?? []) as Journey["obstacles"],
   readiness: m.readiness as Journey["readiness"],
 });
+
+/**
+ * Why a shared Map has no answers to show. Nothing stored tells "she did not tick the box"
+ * apart from "this Map is older than the box", so one sentence covers both rather than
+ * picking one and being wrong half the time. A set that arrived and failed the 0–4 check is
+ * a different thing and worth saying separately, because it is a bug.
+ */
+const missingAnswers = (m: AdminMap): string =>
+  m.contact?.answers == null ? T.noAnswersShared : T.answersBroken;
 
 /** Her 24 answers, if she sent them: 0–4 each, anything else is not a set we can print. */
 const answersOf = (m: AdminMap): Answers | null => {
@@ -605,8 +617,10 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
         />
       ) : (
         <div>
-          <p className="t-label">{T.answersTitle}</p>
-          <p className="t-helper">{T.noAnswers}</p>
+          <p className="t-label">{T.answersCodes}</p>
+          {/* Only a Map that was actually shared can be missing its answers. On every other
+              Map there is nothing to explain (review 6, finding 5). */}
+          {map.contact && <p className="t-helper">{missingAnswers(map)}</p>}
           <p className="t-helper">
             {[map.age_band, map.life_stage, map.caring_for, map.in_treatment, map.duration, ...(map.focus_topics ?? [])]
               .filter(Boolean)

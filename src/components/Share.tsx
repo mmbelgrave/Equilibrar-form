@@ -16,6 +16,7 @@ const emptyContact = (firstName: string): ContactDetails => ({
   whatsapp: "",
   instagram: "",
   consentShare: false,
+  consentAnswers: false,
   consentEmail: false,
 });
 
@@ -130,6 +131,7 @@ export function ShareForm({
   }
 
   const wrong = (field: string) => error?.field === field;
+  const complete = answers.length === 24 && answers.every((a) => a !== null);
 
   return (
     <form ref={formRef} className="card flex flex-col gap-4 px-4 py-4" onSubmit={submit} noValidate>
@@ -174,6 +176,24 @@ export function ShareForm({
         />
         <span>{t("contact.consentShare")}</span>
       </label>
+      {/* Her 24 answers are health answers beside her name, so they get their own box and
+          it is optional — sharing must not be the price of handing them over (review 6,
+          finding 1). It only appears when there is a complete set to send, so the words
+          never promise something that will not happen. */}
+      {complete && (
+        <div>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={contact.consentAnswers}
+              onChange={(e) => set("consentAnswers", e.target.checked)}
+            />
+            <span>{t("contact.consentAnswers")}</span>
+          </label>
+          <p className="t-helper mt-1">{t("contact.consentAnswersHint")}</p>
+        </div>
+      )}
+
       <label className="check">
         <input type="checkbox" checked={contact.consentEmail} onChange={(e) => set("consentEmail", e.target.checked)} />
         <span>{t("contact.consentEmail")}</span>

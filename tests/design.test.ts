@@ -100,3 +100,41 @@ test("no Google Fonts or other third-party URLs in the source", () => {
     assert.ok(!/fonts\.googleapis|fonts\.gstatic/.test(src), `${f} loads fonts from Google`);
   }
 });
+
+/* ------------------------------------------------------------------ printing ------- */
+
+// Review 6, finding 2: `.print-footer { display: none }` was written after the @media print
+// block that shows it. A media query adds no specificity, so the later rule won and the
+// closing line printed on nothing at all. Nothing else in the suite could see it — it
+// type-checked, it linted, it built, and it was wrong.
+test("anything print reveals is hidden before the rule that reveals it, never after", () => {
+  for (const cls of ["print-only", "print-footer"]) {
+    const shows = [...css.matchAll(new RegExp(`\\.${cls}\\s*\\{[^}]*display:\\s*(block|inline)`, "g"))];
+    const hides = [...css.matchAll(new RegExp(`\\.${cls}\\s*\\{[^}]*display:\\s*none`, "g"))];
+    assert.ok(shows.length > 0, `.${cls} should be shown somewhere`);
+    assert.ok(hides.length > 0, `.${cls} should be hidden by default`);
+    const lastShow = Math.max(...shows.map((m) => m.index ?? 0));
+    for (const hide of hides) {
+      assert.ok(
+        (hide.index ?? 0) < lastShow,
+        `.${cls} is hidden at ${hide.index}, after the rule at ${lastShow} that shows it — ` +
+          `equal specificity, so the hide wins and it never prints`,
+      );
+    }
+  }
+});
+
+test("the printed wheel keeps its colours and gains a texture over them", () => {
+  // Colour is what the brand reads by; the texture is what a one-cartridge printer reads by.
+  // Neither replaces the other (review 6, finding 8).
+  assert.doesNotMatch(css, /@media print,\s*\(forced-colors: active\)/, "print must not take the texture swap");
+  for (const step of ["claim", "recover", "build"]) {
+    assert.match(
+      css,
+      new RegExp(`\\.seg-texture-${step}\\s*\\{[^}]*fill:\\s*url\\(#tex-${step}\\)`),
+      `the ${step} wedge should carry its texture on paper`,
+    );
+    assert.match(css, new RegExp(`\\.fill-${step}\\s*\\{\\s*fill:\\s*var\\(--color-step-${step}\\)`), step);
+  }
+});
+

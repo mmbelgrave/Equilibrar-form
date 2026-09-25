@@ -173,11 +173,18 @@ export async function saveResult(id: string, result: MapResult, attempt = 0): Pr
 }
 
 /**
- * Her 24 answers, or nothing. They go to Rê only as a complete set: a half-finished Map
- * would give her a page of blanks to read, and the database refuses anything but 24 anyway.
+ * Her 24 answers, or nothing.
+ *
+ * They follow their own consent, not the one that lets her share at all. Sharing is what a
+ * woman does to reach Rê; the individual answers are health answers next to her name, which
+ * §13 treats as a heavier thing, so the box for them is separate and optional. A woman who
+ * leaves it unticked still shares her Map and Rê still gets the six scores.
+ *
+ * Complete sets only: a half-finished Map would give Rê a page of blanks to read, and the
+ * database refuses anything but 24 anyway.
  */
-export function answersToSend(answers: Answers, consentShare: boolean): number[] | null {
-  if (!consentShare) return null;
+export function answersToSend(answers: Answers, consentAnswers: boolean): number[] | null {
+  if (!consentAnswers) return null;
   if (answers.length !== 24 || answers.some((a) => a === null)) return null;
   return answers as number[];
 }
@@ -187,7 +194,10 @@ export type ContactDetails = {
   email: string;
   whatsapp: string;
   instagram: string;
+  /** Required: without it there is no sharing at all. */
   consentShare: boolean;
+  /** Optional, and separate: her 24 answers, one by one. */
+  consentAnswers: boolean;
   consentEmail: boolean;
 };
 
@@ -226,7 +236,7 @@ export async function shareMap(
     // Her 24 answers, which Rê reads with her in the first conversation. They are the one
     // thing that stays on her device for the whole questionnaire and travels only here,
     // with the consent box that says so.
-    p_answers: answersToSend(answers, contact.consentShare),
+    p_answers: answersToSend(answers, contact.consentAnswers),
   });
   return !error;
 }

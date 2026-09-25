@@ -180,6 +180,16 @@ export function Wheel({
                   onClick={() => onSelect(selected === p ? null : p)}
                   style={{ cursor: "pointer" }}
                 />
+                {/* Paper only: the same wedge again in its step's texture, drawn over the
+                    colour rather than instead of it, so the three steps stay apart on a
+                    printer with one cartridge (review 6, finding 8). */}
+                <path
+                  d={d}
+                  className={`seg-texture-${STEP_OF[p]}`}
+                  stroke="none"
+                  aria-hidden="true"
+                  pointerEvents="none"
+                />
               </g>
             );
           })}

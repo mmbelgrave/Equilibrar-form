@@ -3,7 +3,8 @@
 // pillars, and a link to the Map in the admin view.
 //
 // It runs inside Supabase (EU region), not in the browser, which is why it may hold the
-// secret keys. Nothing here ever includes the check-in, and never the 24 answers.
+// secret keys. Nothing here ever includes the check-in or the 24 answers: the email tells
+// Rê that somebody shared and who, and she reads the Map itself on her own page.
 //
 // It trusts two things and nothing else: the shared secret in the request header, and what
 // it then reads from the database itself. The body of the request is only used for the id.

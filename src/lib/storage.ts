@@ -50,8 +50,9 @@ export type SavedState = {
   journey: Journey; // J1, J2, J4, coded
   /**
    * Her first name (C0) and her own words (J3, J5). Written to this device so the
-   * conclusion can use them and a dropped connection does not lose them — never part of
-   * the result object, and in Phase 1 never sent anywhere (spec §4, §13).
+   * conclusion can use them and a dropped connection does not lose them. Never part of the
+   * result object; they reach Rê only through the share form, each behind its own tick
+   * (spec §4, §13).
    */
   personal: Personal;
   /** The last finished Map. Kept while a re-take is in progress, replaced when it finishes. */
