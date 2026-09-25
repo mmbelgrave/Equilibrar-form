@@ -38,6 +38,14 @@ jobs:
           # BASE_PATH is the sub-folder Pages serves it from.
           STATIC_EXPORT: "1"
           NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+          # Rê's database. These three are repository *variables*, not secrets: they are
+          # public by design and end up in the built JavaScript anyway. What protects the
+          # data is the row-level security in supabase/schema.sql, not hiding this key.
+          # Until they are set the site builds with no database and saves nothing.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # Rê's WhatsApp number in wa.me form, e.g. 351912345678. Optional.
+          NEXT_PUBLIC_RE_WHATSAPP: ${{ vars.NEXT_PUBLIC_RE_WHATSAPP }}
       # Switches Pages on for the repository the first time, so nobody has to click it.
       - uses: actions/configure-pages@v5
         with:
