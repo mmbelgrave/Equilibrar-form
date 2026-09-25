@@ -316,13 +316,22 @@ export function overview(maps: AdminMap[], now = new Date()) {
   for (const m of finished) if (m.focus_pillar) lowest[m.focus_pillar] = (lowest[m.focus_pillar] ?? 0) + 1;
   const stoppedAt: Record<string, number> = {};
   for (const m of maps) if (statusOf(m, now) === "stopped") stoppedAt[m.step] = (stoppedAt[m.step] ?? 0) + 1;
-  // The average score per pillar across every finished Map: where the women as a group are
-  // least supported, which is a different question from where each one is.
-  const averages = {} as Record<(typeof PILLARS)[number], number | null>;
-  for (const pillar of PILLARS) {
-    const scores = finished.map((m) => m[`score_${pillar}`]).filter((v): v is number => typeof v === "number");
-    averages[pillar] = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
-  }
+  // The average score per pillar: where the women as a group are least supported, which is
+  // a different question from where each one is. Two groups, because they answer different
+  // questions — everyone who finished is the honest picture of the women who do the Map,
+  // and the ones who went on to share are the women Rê actually meets. A gap between the
+  // two is worth her knowing about.
+  const shared = finished.filter((m) => m.shared_at);
+  const averageOf = (list: AdminMap[]) => {
+    const out = {} as Record<(typeof PILLARS)[number], number | null>;
+    for (const pillar of PILLARS) {
+      const scores = list.map((m) => m[`score_${pillar}`]).filter((v): v is number => typeof v === "number");
+      out[pillar] = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+    }
+    return out;
+  };
+  const averages = averageOf(finished);
+  const averagesShared = averageOf(shared);
   const split = (list: AdminMap[], locale: "pt" | "en") => ({
     started: count(list, (m) => m.locale === locale),
     finished: count(list, (m) => m.locale === locale && !!m.finished_at),
@@ -343,6 +352,9 @@ export function overview(maps: AdminMap[], now = new Date()) {
     shareRate: finished.length ? Math.round((maps.filter((m) => m.shared_at).length / finished.length) * 100) : 0,
     lowest,
     averages,
+    averagesShared,
+    /** How many Maps each average is made of, so a number from three women reads as one. */
+    counts: { finished: finished.length, shared: shared.length },
     stoppedAt,
     followedRecommendation: (() => {
       const chosen = maps.filter((m) => m.chosen_path);

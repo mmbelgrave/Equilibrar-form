@@ -119,6 +119,24 @@ test("the average of each pillar counts only the women who finished", () => {
   const sums = overview(SAMPLE, now);
   assert.equal(sums.averages.space, 50); // (25 + 75) / 2, the unfinished Map left out
   assert.equal(sums.averages.sleep, null); // nobody has one
+  assert.deepEqual(sums.counts, { finished: 3, shared: 1 });
+});
+
+test("the women who shared are averaged separately from everyone who finished", () => {
+  // Rê asked which it was. It is both: everyone who finished is the honest picture of the
+  // women who do the Map, and the ones who shared are the women she actually meets.
+  const sums = overview(SAMPLE, now);
+  assert.equal(sums.averages.space, 50); // the two finished Maps with a Space score
+  assert.equal(sums.averagesShared.space, 25); // only the one that was shared
+  assert.equal(sums.averagesShared.sleep, null);
+});
+
+test("with nothing shared yet, the shared average is empty rather than wrong", () => {
+  const unshared = SAMPLE.map((m) => ({ ...m, shared_at: null }));
+  const sums = overview(unshared, now);
+  assert.equal(sums.counts.shared, 0);
+  assert.equal(sums.averagesShared.space, null);
+  assert.equal(sums.averages.space, 50); // the other average is untouched
 });
 
 test("the CSV says whether she agreed to be emailed", () => {

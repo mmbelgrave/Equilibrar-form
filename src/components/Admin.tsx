@@ -78,7 +78,12 @@ const T = {
   completionNote: "Dos Mapas que já pararam ou terminaram — os que estão em andamento ficam de fora.",
   shareRate: "Taxa de compartilhamento",
   lowest: "Pilar mais baixo, com que frequência",
-  averages: "Média de cada pilar, entre quem terminou",
+  averages: "Média de cada pilar",
+  averagesAll: "Todas que terminaram",
+  averagesShared: "As que compartilharam com você",
+  averagesCount: (finished: number, shared: number) =>
+    `${finished} ${finished === 1 ? "terminou" : "terminaram"} · ${shared} ${shared === 1 ? "compartilhou" : "compartilharam"}`,
+  averagesNone: "Ainda não há Mapas compartilhados para comparar.",
   byLanguage: "Começaram e terminaram, por idioma",
   stoppedAt: "Onde elas param",
   followed: "Seguiram a sugestão",
@@ -468,16 +473,47 @@ function Overview({ sums }: { sums: ReturnType<typeof overview> }) {
       {averages.length > 0 && (
         <div className="card px-4 py-3">
           <p className="t-label">{T.averages}</p>
-          <ul className="mt-2 flex flex-col gap-1">
+          <p className="t-helper">{T.averagesCount(sums.counts.finished, sums.counts.shared)}</p>
+
+          {/* Two bars per pillar: everyone who finished, and the ones who went on to share.
+              Where they part company is the interesting part. */}
+          <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <span className="flex items-center gap-2">
+              <span className="chip-dot bg-rose-500" aria-hidden="true" />
+              {T.averagesAll}
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="chip-dot bg-plum-600" aria-hidden="true" />
+              {T.averagesShared}
+            </span>
+          </p>
+
+          <ul className="mt-3 flex flex-col gap-3">
             {averages.map(([pillar, value]) => (
-              <li key={pillar} className="flex items-center gap-2">
-                <span className="w-28">{PILLAR_PT[pillar]}</span>
-                <span
-                  className="bar-fill block h-3 rounded-r-[4px] bg-plum-600"
-                  style={{ width: `${(value ?? 0) * 0.6}%` }}
-                  aria-hidden="true"
-                />
-                <span className="t-num text-ink">{value}</span>
+              <li key={pillar} className="grid grid-cols-[7rem_1fr] items-center gap-x-3 gap-y-1">
+                <span className="row-span-2">{PILLAR_PT[pillar]}</span>
+                <span className="flex items-center gap-2">
+                  <span
+                    className="bar-fill block h-3 rounded-r-[4px] bg-rose-500"
+                    style={{ width: `${(value ?? 0) * 0.6}%` }}
+                    aria-hidden="true"
+                  />
+                  <span className="t-num text-ink">{value}</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  {sums.counts.shared > 0 ? (
+                    <>
+                      <span
+                        className="bar-fill block h-3 rounded-r-[4px] bg-plum-600"
+                        style={{ width: `${(sums.averagesShared[pillar] ?? 0) * 0.6}%` }}
+                        aria-hidden="true"
+                      />
+                      <span className="t-num text-ink">{sums.averagesShared[pillar]}</span>
+                    </>
+                  ) : (
+                    <span className="t-helper">{T.averagesNone}</span>
+                  )}
+                </span>
               </li>
             ))}
           </ul>
