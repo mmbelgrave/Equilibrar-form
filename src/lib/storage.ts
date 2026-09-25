@@ -66,6 +66,11 @@ export type SavedState = {
    * points at holds coded answers and scores, and no rule lets anyone read it back.
    */
   mapId: string | null;
+  /**
+   * The secret half of her 30-day link (spec §5). Made when she finishes, kept here so the
+   * link she was emailed keeps working and a second visit does not mint a different one.
+   */
+  linkToken: string | null;
 };
 
 export const STATE_KEY = "eq.v3";
@@ -84,6 +89,7 @@ export function emptyState(): SavedState {
     result: null,
     animated: false,
     mapId: null,
+    linkToken: null,
   };
 }
 
@@ -160,6 +166,7 @@ export function parseState(raw: string | null): { state: SavedState; resultLost:
       result,
       animated: s.animated === true,
       mapId: typeof s.mapId === "string" && /^[0-9a-f-]{36}$/i.test(s.mapId) ? s.mapId : null,
+      linkToken: typeof s.linkToken === "string" && /^[A-Za-z0-9_-]{20,64}$/.test(s.linkToken) ? s.linkToken : null,
     },
     resultLost,
   };

@@ -373,5 +373,8 @@
   "contact.leaving": "Você pode sair quando quiser: responda a qualquer e-mail da Rê, ou peça a ela pelo WhatsApp. Antes de continuar, veja",
   "contact.privacyLink": "como cuidamos dos seus dados",
   "contact.consentAnswers": "A Rê pode ver as minhas 24 respostas, uma a uma, para conversarmos sobre elas juntas.",
-  "contact.consentAnswersHint": "Opcional. Sem isso, a Rê vê o seu Mapa e as seis pontuações — e você pode mostrar o resto na conversa, se quiser."
+  "contact.consentAnswersHint": "Opcional. Sem isso, a Rê vê o seu Mapa e as seis pontuações — e você pode mostrar o resto na conversa, se quiser.",
+  "link.note": "Este é o seu Mapa como ele ficou. Ele fica guardado por 30 dias a partir do dia em que você terminou. As suas palavras e as suas respostas uma a uma ficaram no aparelho onde você respondeu — aqui estão o seu Mapa e as seis pontuações.",
+  "link.retake": "Fazer o Mapa de novo neste aparelho",
+  "link.expired": "Este link não vale mais. Os Mapas ficam guardados por 30 dias — mas você pode fazer o seu de novo agora, leva uns 15 minutos."
 }

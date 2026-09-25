@@ -373,5 +373,8 @@
   "contact.leaving": "You can leave whenever you like: reply to any of Rê's emails, or ask her on WhatsApp. Before you continue, see",
   "contact.privacyLink": "how we look after your details",
   "contact.consentAnswers": "Rê may see my 24 answers, one by one, so we can talk them through together.",
-  "contact.consentAnswersHint": "Optional. Without it, Rê sees your Map and the six scores — and you can show her the rest in the conversation if you want to."
+  "contact.consentAnswersHint": "Optional. Without it, Rê sees your Map and the six scores — and you can show her the rest in the conversation if you want to.",
+  "link.note": "This is your Map as it was. It is kept for 30 days from the day you finished. Your own words and your individual answers stayed on the device you answered on — what is here is your Map and the six scores.",
+  "link.retake": "Take the Map again on this device",
+  "link.expired": "This link has expired. Maps are kept for 30 days — but you can take yours again now; it takes about 15 minutes."
 }

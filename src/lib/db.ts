@@ -7,7 +7,16 @@
 // Map behaves exactly as it does today: her answers live on her own device.
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Personal } from "./conclusion.ts";
-import { PILLARS, type Answers, type Context, type Journey, type MapResult, type Path, type Scores } from "./scoring.ts";
+import {
+  PILLARS,
+  parseResult,
+  type Answers,
+  type Context,
+  type Journey,
+  type MapResult,
+  type Path,
+  type Scores,
+} from "./scoring.ts";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -147,7 +156,7 @@ export async function saveProgress(
  * after this one to heal it, and it is the write Rê's completion figures depend on — so it
  * is tried twice (review 5, finding 11).
  */
-export async function saveResult(id: string, result: MapResult, attempt = 0): Promise<void> {
+export async function saveResult(id: string, result: MapResult, linkToken: string, attempt = 0): Promise<void> {
   const supabase = db();
   if (!supabase) return;
   const { error } = await supabase.rpc("save_map", {
@@ -155,6 +164,7 @@ export async function saveResult(id: string, result: MapResult, attempt = 0): Pr
     p_patch: {
       step: "result",
       finished_at: result.completed_at,
+      link_token: linkToken,
       focus_pillar: result.focus_pillar,
       second_pillar: result.second_pillar,
       recommended_path: result.recommended_path,
@@ -168,8 +178,42 @@ export async function saveResult(id: string, result: MapResult, attempt = 0): Pr
   });
   if (error && attempt === 0) {
     await new Promise((resume) => setTimeout(resume, 2000));
-    await saveResult(id, result, 1);
+    await saveResult(id, result, linkToken, 1);
   }
+}
+
+/**
+ * The 30-day link (spec §5). A long random string made on her own device when she finishes,
+ * so the only copy that ever exists outside the database is the one she is sent.
+ */
+export function newLinkToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return btoa(String.fromCharCode(...bytes))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
+}
+
+/**
+ * Her Map, read back from the link she was emailed. Returns null for a wrong or expired
+ * link, which is the same answer either way — nothing tells a stranger which it was.
+ *
+ * What comes back is the Map alone. Her name, her own words and her contact details are not
+ * in it: those are Rê's to hold, not something a link hands to whoever is holding it. The
+ * check-in is not in it either, because it was never stored.
+ */
+export async function mapByLink(id: string, token: string): Promise<MapResult | null> {
+  const supabase = db();
+  if (!supabase) return null;
+  const { data, error } = await supabase.rpc("map_by_link", { p_map_id: id, p_token: token });
+  if (error || !Array.isArray(data) || data.length === 0) return null;
+  const row = data[0] as Record<string, unknown>;
+  return parseResult({
+    ...row,
+    submission_id: row.id,
+    completed_at: row.finished_at,
+    flagged: false, // never stored, so a Map opened from a link cannot claim either way
+  });
 }
 
 /**

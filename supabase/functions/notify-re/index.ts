@@ -26,11 +26,13 @@ type ContactRow = {
   question_for_re: string | null;
   consent_share: boolean;
   maps: {
+    id: string;
     focus_pillar: string | null;
     second_pillar: string | null;
     chosen_path: string | null;
     recommended_path: string | null;
     locale: string | null;
+    link_token: string | null;
   } | null;
 };
 
@@ -83,7 +85,7 @@ Deno.serve(async (request: Request) => {
   query.searchParams.set(
     "select",
     "map_id,first_name,email,whatsapp,question_for_re,consent_share," +
-      "maps(focus_pillar,second_pillar,chosen_path,recommended_path,locale)",
+      "maps(id,focus_pillar,second_pillar,chosen_path,recommended_path,locale,link_token)",
   );
   const response = await fetch(query, {
     headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
@@ -133,5 +135,68 @@ Deno.serve(async (request: Request) => {
     console.error("Resend refused:", sent.status, await sent.text().catch(() => ""));
     return new Response("email failed", { status: 500 });
   }
+
+  // 3. And one to her: the way back to her own Map for thirty days (spec §5). No PDF is
+  //    made or stored anywhere — the Map is rebuilt on her own device from this link, which
+  //    is what lets the printed version carry everything without §13 having to think about
+  //    it. Her Map is hers whether or not she ever opens it, so this is not a marketing
+  //    e-mail and does not wait on the e-mail consent.
+  const mapUrl = Deno.env.get("MAP_URL") ?? "";
+  if (mapUrl && map?.link_token && map.id) {
+    const join = mapUrl.includes("?") ? "&" : "?";
+    const link = `${mapUrl}${join}m=${map.id}&t=${encodeURIComponent(map.link_token)}`;
+    const hers = map.locale === "en" ? herCopyEn(name, link) : herCopyPt(name, link);
+    const toHer = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: [contact.email], subject: hers.subject, text: hers.text }),
+    });
+    if (!toHer.ok) {
+      // Rê has been told either way, and that must not be undone by this one failing.
+      console.error("Her own copy refused:", toHer.status, await toHer.text().catch(() => ""));
+    }
+  }
+
   return new Response("sent", { status: 200 });
 });
+
+/* --------------------------------------------- her own copy, in her own language ---- */
+/* Draft wording. Renata replaces it with hers, the same as every other line in the app.  */
+
+function herCopyPt(name: string, link: string) {
+  const greeting = name === "Uma mulher" ? "Oi," : `Oi, ${name},`;
+  return {
+    subject: "O seu Mapa Equilibrar",
+    text: [
+      greeting,
+      "",
+      "Aqui está o seu Mapa, para você abrir quando quiser:",
+      link,
+      "",
+      'O link vale por 30 dias. Para guardar, abra e escolha "Imprimir" — dá para salvar como PDF no celular ou no computador.',
+      "",
+      "Eu recebi o seu Mapa e falo com você em breve.",
+      "",
+      "Rê",
+    ].join("\n"),
+  };
+}
+
+function herCopyEn(name: string, link: string) {
+  const greeting = name === "Uma mulher" ? "Hello," : `Hello ${name},`;
+  return {
+    subject: "Your Equilibrar Map",
+    text: [
+      greeting,
+      "",
+      "Here is your Map, to open whenever you like:",
+      link,
+      "",
+      'The link works for 30 days. To keep it, open it and choose "Print" — you can save it as a PDF on your phone or your computer.',
+      "",
+      "I have your Map and I will be in touch soon.",
+      "",
+      "Rê",
+    ].join("\n"),
+  };
+}

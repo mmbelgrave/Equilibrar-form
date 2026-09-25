@@ -48,6 +48,11 @@ create table if not exists public.maps (
 
   -- set when she presses "Share my Map with Rê"
   shared_at timestamptz,
+  -- Spec §5: "she can leave with her result on a 30-day link". A long random string made in
+  -- her browser when she finishes; the link is the only way back to a Map from anywhere
+  -- else, and it expires 30 days after she finished. It unlocks nothing but her own Map,
+  -- and never her contact details, so it is kept as it is rather than hashed.
+  link_token text,
   -- Rê's own follow-up, set by her in the admin view
   status text not null default 'open' check (status in ('open', 'contacted', 'joined', 'not_now')),
   note text
@@ -55,6 +60,7 @@ create table if not exists public.maps (
 
 create index if not exists maps_created_at_idx on public.maps (created_at desc);
 create index if not exists maps_shared_at_idx on public.maps (shared_at desc nulls last);
+create index if not exists maps_link_token_idx on public.maps (link_token) where link_token is not null;
 
 -- The clock is the database's, never the visitor's. A phone whose clock is a year slow
 -- would otherwise hand us an `updated_at` a year old and have its Map deleted overnight
@@ -196,7 +202,10 @@ begin
     focus_pillar    = case when p_patch ? 'focus_pillar'    then p_patch->>'focus_pillar'    else focus_pillar end,
     second_pillar   = case when p_patch ? 'second_pillar'   then p_patch->>'second_pillar'   else second_pillar end,
     recommended_path = case when p_patch ? 'recommended_path' then p_patch->>'recommended_path' else recommended_path end,
-    finished_at     = case when p_patch ? 'finished_at'     then (p_patch->>'finished_at')::timestamptz else finished_at end
+    finished_at     = case when p_patch ? 'finished_at'     then (p_patch->>'finished_at')::timestamptz else finished_at end,
+    -- Written once, when she finishes. A second call cannot change the link under a woman
+    -- who already has it in her inbox.
+    link_token      = coalesce(link_token, nullif(p_patch->>'link_token', ''))
   where id = p_map_id
     and shared_at is null
     and created_at > now() - interval '30 days';
@@ -276,6 +285,38 @@ begin
 end;
 $fn$;
 
+-- Her own Map, by the link she was emailed (spec §5). This is the only way a visitor reads
+-- a Map back, and it needs both the id and a long random token that only she was given.
+-- It returns the Map and nothing else: no contact row, no name, no e-mail — those belong to
+-- Rê's page, not to whoever is holding a link. Thirty days after she finished it stops
+-- answering, which is what the notice promises.
+create or replace function public.map_by_link(p_map_id uuid, p_token text)
+returns table (
+  id uuid, locale text, finished_at timestamptz,
+  age_band text, life_stage text, caring_for text, support_home smallint,
+  work_flex text, in_treatment text, focus_topics text[], duration text,
+  tried text[], obstacles text[], readiness text,
+  score_space smallint, score_routine smallint, score_sleep smallint,
+  score_calm smallint, score_food smallint, score_strength smallint,
+  focus_pillar text, second_pillar text, recommended_path text, chosen_path text
+)
+language sql stable security definer set search_path = public as $fn$
+  select m.id, m.locale, m.finished_at,
+         m.age_band, m.life_stage, m.caring_for, m.support_home,
+         m.work_flex, m.in_treatment, m.focus_topics, m.duration,
+         m.tried, m.obstacles, m.readiness,
+         m.score_space, m.score_routine, m.score_sleep,
+         m.score_calm, m.score_food, m.score_strength,
+         m.focus_pillar, m.second_pillar, m.recommended_path, m.chosen_path
+    from public.maps m
+   where m.id = p_map_id
+     and m.link_token is not null
+     and length(p_token) >= 20
+     and m.link_token = p_token
+     and m.finished_at is not null
+     and m.finished_at > now() - interval '30 days';
+$fn$;
+
 -- Rê (and anyone on the admins list) reads everything and keeps her own follow-up notes.
 drop policy if exists "an admin reads every map" on public.maps;
 create policy "an admin reads every map" on public.maps for select to authenticated using (public.is_admin());
@@ -326,6 +367,8 @@ revoke execute on function public.share_map(uuid, text, text, text, text, text, 
 revoke execute on function public.save_map(uuid, jsonb) from public;
 grant execute on function public.share_map(uuid, text, text, text, text, text, boolean, boolean, text, text, jsonb) to anon, authenticated;
 grant execute on function public.save_map(uuid, jsonb) to anon, authenticated;
+revoke execute on function public.map_by_link(uuid, text) from public;
+grant execute on function public.map_by_link(uuid, text) to anon, authenticated;
 grant execute on function public.is_admin() to authenticated;
 
 -- --------------------------------------------------------- the nightly job ---------

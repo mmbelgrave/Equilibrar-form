@@ -834,6 +834,7 @@ export function Result({
   animate,
   onContinue,
   onRetake,
+  fromLink = false,
 }: {
   headingRef: HeadingRef;
   locale: Locale;
@@ -846,6 +847,12 @@ export function Result({
   animate: boolean;
   onContinue: () => void;
   onRetake: () => void;
+  /**
+   * Opened from the 30-day link rather than from this device. Her Map is all there, but her
+   * name, her own words and her 24 answers are not — those never left the device she
+   * answered on — so the full print and the paths are not offered here (spec §5).
+   */
+  fromLink?: boolean;
 }) {
   const t = useTranslations();
   const scores = scoresOf(result);
@@ -1004,7 +1011,7 @@ export function Result({
         </div>
       </div>
 
-      <PrintAnswers answers={answers} context={context} journey={journey} flagged={result.flagged} />
+      {!fromLink && <PrintAnswers answers={answers} context={context} journey={journey} flagged={result.flagged} />}
 
       {/* Paper only: what this is and when it was made, at the foot of the last sheet. */}
       <p className="print-footer t-helper">
@@ -1012,15 +1019,29 @@ export function Result({
       </p>
 
       <div className="no-print flex flex-col items-center gap-3 md:items-start">
-        <button type="button" className="btn btn-primary" onClick={onContinue}>
-          {t("result.continue")}
-        </button>
-        <PrintButtons />
-        <p className="t-helper">{t("print.hint")}</p>
-        <button type="button" className="link min-h-11" onClick={onRetake}>
-          {t("result.retake")}
-        </button>
-        <p className="t-helper">{t("result.localNote")}</p>
+        {fromLink ? (
+          <>
+            <p className="card px-4 py-3 text-sm" role="note">
+              {t("link.note")}
+            </p>
+            <PrintButtons only="result" />
+            <button type="button" className="link min-h-11" onClick={onRetake}>
+              {t("link.retake")}
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="btn btn-primary" onClick={onContinue}>
+              {t("result.continue")}
+            </button>
+            <PrintButtons />
+            <p className="t-helper">{t("print.hint")}</p>
+            <button type="button" className="link min-h-11" onClick={onRetake}>
+              {t("result.retake")}
+            </button>
+            <p className="t-helper">{t("result.localNote")}</p>
+          </>
+        )}
       </div>
     </section>
   );
@@ -1028,7 +1049,7 @@ export function Result({
 
 /** "Print my result" and "Print my full Map" (spec v4 §12). The full one adds her answers
  * to the page for the duration of the print, through a class on <html>. */
-export function PrintButtons() {
+export function PrintButtons({ only }: { only?: "result" } = {}) {
   const t = useTranslations();
 
   useEffect(() => {
@@ -1051,9 +1072,11 @@ export function PrintButtons() {
       <button type="button" className="btn btn-secondary" onClick={() => print(false)}>
         {t("print.result")}
       </button>
-      <button type="button" className="btn btn-secondary" onClick={() => print(true)}>
-        {t("print.full")}
-      </button>
+      {only !== "result" && (
+        <button type="button" className="btn btn-secondary" onClick={() => print(true)}>
+          {t("print.full")}
+        </button>
+      )}
     </div>
   );
 }

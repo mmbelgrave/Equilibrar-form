@@ -5,8 +5,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Header } from "@/components/Header";
 import { About, CheckIn, Divider, JourneyScreen, Paths, PrintButtons, Question, Result, Welcome } from "@/components/screens";
 import { Confirmation, ShareForm } from "@/components/Share";
-import { enabled as dbEnabled, saveProgress, saveResult, startMap, type Step as DbStep } from "@/lib/db";
-import type { Personal } from "@/lib/conclusion";
+import {
+  enabled as dbEnabled,
+  mapByLink,
+  newLinkToken,
+  saveProgress,
+  saveResult,
+  startMap,
+  type Step as DbStep,
+} from "@/lib/db";
+import { emptyPersonal, type Personal } from "@/lib/conclusion";
 import { FLAT_MESSAGES, HTML_LANG, MESSAGES, PATHS, type Locale } from "@/lib/i18n";
 import {
   CONTEXT_KEYS,
@@ -15,6 +23,8 @@ import {
   QUESTION_COUNT,
   buildResult,
   contextComplete,
+  emptyContext,
+  emptyJourney,
   isComplete,
   journeyComplete,
   triedNothing,
@@ -22,6 +32,7 @@ import {
   type Answer,
   type Context,
   type Journey,
+  type MapResult,
   type Path,
   type Scores,
 } from "@/lib/scoring";
@@ -98,6 +109,25 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   // The insert itself, not the id: two answers inside one round trip would otherwise both
   // find no id and start two rows (review 5, finding 12).
   const startingRef = useRef<Promise<string | null> | null>(null);
+
+  // A Map opened from the 30-day link: whatever is on this device stays untouched, and what
+  // the link opens is read-only — it is her result as it was, not a Map in progress.
+  const [fromLink, setFromLink] = useState<MapResult | null>(null);
+  const [linkExpired, setLinkExpired] = useState(false);
+  useEffect(() => {
+    const url = new URLSearchParams(window.location.search);
+    const id = url.get("m");
+    const token = url.get("t");
+    if (!dbEnabled || !id || !token) return;
+    void mapByLink(id, token).then((result) => {
+      // A link older than thirty days and a mistyped one give the same answer, deliberately.
+      // Saying nothing at all would leave her on a start screen with no idea why.
+      if (result) setFromLink(result);
+      else setLinkExpired(true);
+      // The link is spent: it should not sit in the address bar to be shared or logged.
+      window.history.replaceState(window.history.state, "", PATHS[initialLocale].map);
+    });
+  }, [initialLocale]);
 
   // Read saved progress once, on the client.
   useEffect(() => {
@@ -292,7 +322,9 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
       // write the conclusion, and the 24 answers let her print her full Map (v4 §12).
       // Nothing here is sent by finishing. Her name and the details she types go to Rê only
       // if she shares, and the 24 answers only if she also ticks the box for them.
-      return { ...s, screen: "result", pos: 0, result, animated: false };
+      // Her 30-day link is minted here, on her device, so the only copy that leaves is the
+      // one she is sent (spec §5). The same one is kept if she re-takes and finishes again.
+      return { ...s, screen: "result", pos: 0, result, animated: false, linkToken: s.linkToken ?? newLinkToken() };
     });
   }
 
@@ -343,8 +375,8 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
     if (!dbEnabled || !state?.result || !id) return;
     if (savedResult.current === state.result.submission_id) return;
     savedResult.current = state.result.submission_id;
-    void saveResult(id, state.result);
-  }, [state?.result, state?.mapId]);
+    void saveResult(id, state.result, state.linkToken ?? newLinkToken());
+  }, [state?.result, state?.mapId, state?.linkToken]);
 
   // The wheel animates once, on the first render of a result — never again.
   useEffect(() => {
@@ -376,6 +408,11 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
           </p>
         )}
         <Notices online={online} storageOk={storageOk} locale={locale} />
+        {linkExpired && (
+          <div role="status" className="no-print mb-4">
+            <p className="card px-4 py-3 text-sm">{FLAT_MESSAGES[locale]["link.expired"]}</p>
+          </div>
+        )}
         <main className="flex flex-1 flex-col pb-12">
           {state === null ? (
             // Server render and the moment before saved progress is read. An inline script
@@ -399,10 +436,31 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
             </>
           ) : (
             <div
-              key={screenKey}
+              key={fromLink ? "from-link" : screenKey}
               className={"flex flex-1 flex-col " + (direction === "next" ? "enter-next" : direction === "back" ? "enter-back" : "")}
             >
-              {state.screen === "welcome" && (
+              {/* Her Map, opened from the link she was e-mailed. It stands in front of
+                  whatever this device holds and changes none of it (spec §5). */}
+              {fromLink && (
+                <Result
+                  headingRef={headingRef}
+                  locale={locale}
+                  result={fromLink}
+                  personal={emptyPersonal()}
+                  answers={[]}
+                  context={emptyContext()}
+                  journey={emptyJourney()}
+                  moodTicked={false}
+                  animate={false}
+                  onContinue={() => setFromLink(null)}
+                  onRetake={() => {
+                    setFromLink(null);
+                    start();
+                  }}
+                  fromLink
+                />
+              )}
+              {!fromLink && state.screen === "welcome" && (
                 <Welcome
                   headingRef={headingRef}
                   locale={locale}
@@ -418,7 +476,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   saving={dbEnabled}
                 />
               )}
-              {state.screen === "about" && (
+              {!fromLink && state.screen === "about" && (
                 <About
                   headingRef={headingRef}
                   pos={state.pos}
@@ -430,7 +488,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   onBack={back}
                 />
               )}
-              {state.screen === "flow" && q === null && (
+              {!fromLink && state.screen === "flow" && q === null && (
                 <Divider
                   headingRef={headingRef}
                   pillarIndex={posToPillarIndex(state.pos)}
@@ -438,7 +496,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   onBack={back}
                 />
               )}
-              {state.screen === "flow" && q !== null && (
+              {!fromLink && state.screen === "flow" && q !== null && (
                 <Question
                   headingRef={headingRef}
                   index={q}
@@ -448,7 +506,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   onBack={back}
                 />
               )}
-              {state.screen === "journey" && (
+              {!fromLink && state.screen === "journey" && (
                 <JourneyScreen
                   headingRef={headingRef}
                   pos={state.pos}
@@ -460,8 +518,8 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   onBack={back}
                 />
               )}
-              {state.screen === "checkin" && <CheckIn headingRef={headingRef} onContinue={finish} onBack={back} />}
-              {state.screen === "result" && state.result && (
+              {!fromLink && state.screen === "checkin" && <CheckIn headingRef={headingRef} onContinue={finish} onBack={back} />}
+              {!fromLink && state.screen === "result" && state.result && (
                 <Result
                   headingRef={headingRef}
                   locale={locale}
@@ -476,7 +534,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   onRetake={start}
                 />
               )}
-              {state.screen === "paths" && state.result && (
+              {!fromLink && state.screen === "paths" && state.result && (
                 <Paths
                   headingRef={headingRef}
                   result={state.result}
@@ -507,7 +565,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   }
                 />
               )}
-              {state.screen === "confirm" && state.result && (
+              {!fromLink && state.screen === "confirm" && state.result && (
                 <Confirmation
                   headingRef={headingRef}
                   result={state.result}
