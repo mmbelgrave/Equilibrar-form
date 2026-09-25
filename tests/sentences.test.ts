@@ -148,6 +148,15 @@ test("every sentence with placeholders has a value for each of them on screen", 
     "question.progressLabel": ["n", "total"],
     "step.chip": ["n", "step"],
     "confirm.whatsappText": ["name"],
+    // The five-email sequence (spec §12). Nothing sends these yet, so this list is the
+    // contract the sender will have to meet: every one of these has to be filled, and
+    // nothing else may appear in the copy without being added here first.
+    "email.1.body": ["name", "link", "pillar", "practice"],
+    "email.2.subject": ["pillar"],
+    "email.2.body": ["name", "pillar", "why"],
+    "email.3.body": ["name", "practice"],
+    "email.4.body": ["name", "story"],
+    "email.5.body": ["name", "paths", "link"],
   };
   for (const l of LOCALES) {
     for (const [k, v] of Object.entries(M[l])) {

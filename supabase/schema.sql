@@ -48,15 +48,21 @@ create table if not exists public.maps (
 
   -- set when she presses "Share my Map with Rê"
   shared_at timestamptz,
-  -- Spec §5: "she can leave with her result on a 30-day link". A long random string made in
-  -- her browser when she finishes; the link is the only way back to a Map from anywhere
-  -- else, and it expires 30 days after she finished. It unlocks nothing but her own Map,
-  -- and never her contact details, so it is kept as it is rather than hashed.
-  link_token text,
   -- Rê's own follow-up, set by her in the admin view
   status text not null default 'open' check (status in ('open', 'contacted', 'joined', 'not_now')),
   note text
 );
+
+-- A column added after the first release goes here, never inside the block above:
+-- `create table if not exists` does nothing at all on a table that already exists, so a new
+-- column written up there reaches a new project and silently skips Rê's. Everything that
+-- follows then fails on a column that is not there.
+--
+-- Spec §5: "she can leave with her result on a 30-day link". A long random string made in
+-- her browser when she finishes; the link is the only way back to a Map from anywhere else,
+-- and it stops working 30 days after she finished. It unlocks nothing but her own Map, and
+-- never her contact details, so it is kept as it is rather than hashed.
+alter table public.maps add column if not exists link_token text;
 
 create index if not exists maps_created_at_idx on public.maps (created_at desc);
 create index if not exists maps_shared_at_idx on public.maps (shared_at desc nulls last);
