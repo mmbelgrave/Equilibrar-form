@@ -7,7 +7,7 @@
 // Map behaves exactly as it does today: her answers live on her own device.
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Personal } from "./conclusion.ts";
-import { PILLARS, type Context, type Journey, type MapResult, type Path, type Scores } from "./scoring.ts";
+import { PILLARS, type Answers, type Context, type Journey, type MapResult, type Path, type Scores } from "./scoring.ts";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -172,6 +172,16 @@ export async function saveResult(id: string, result: MapResult, attempt = 0): Pr
   }
 }
 
+/**
+ * Her 24 answers, or nothing. They go to Rê only as a complete set: a half-finished Map
+ * would give her a page of blanks to read, and the database refuses anything but 24 anyway.
+ */
+export function answersToSend(answers: Answers, consentShare: boolean): number[] | null {
+  if (!consentShare) return null;
+  if (answers.length !== 24 || answers.some((a) => a === null)) return null;
+  return answers as number[];
+}
+
 export type ContactDetails = {
   firstName: string;
   email: string;
@@ -191,6 +201,7 @@ export async function shareMap(
   chosenPath: Path | null,
   contact: ContactDetails,
   personal: Personal,
+  answers: Answers = [],
 ): Promise<boolean> {
   const supabase = db();
   if (!supabase) return false;
@@ -212,6 +223,10 @@ export async function shareMap(
     p_consent_email: contact.consentEmail,
     p_vision: personal.shareConsent ? personal.vision || null : null,
     p_question: personal.shareConsent ? personal.question || null : null,
+    // Her 24 answers, which Rê reads with her in the first conversation. They are the one
+    // thing that stays on her device for the whole questionnaire and travels only here,
+    // with the consent box that says so.
+    p_answers: answersToSend(answers, contact.consentShare),
   });
   return !error;
 }
@@ -242,6 +257,7 @@ export type AdminMap = MapRow & {
     vision: string | null;
     question_for_re: string | null;
     consent_email: boolean;
+    answers: number[] | null;
   } | null;
 };
 
@@ -254,7 +270,7 @@ export async function listMaps(): Promise<{ maps: AdminMap[]; error: string | nu
   if (!supabase) return { maps: [], error: null };
   const { data, error } = await supabase
     .from("maps")
-    .select("*, contacts(first_name, email, whatsapp, instagram, vision, question_for_re, consent_email)")
+    .select("*, contacts(first_name, email, whatsapp, instagram, vision, question_for_re, consent_email, answers)")
     .order("created_at", { ascending: false })
     .limit(1000);
   if (error) return { maps: [], error: error.message };

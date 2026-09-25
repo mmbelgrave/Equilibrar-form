@@ -6,7 +6,7 @@ import { RE_WHATSAPP } from "@/lib/links";
 import { PATHS, type Locale } from "@/lib/i18n";
 import { enabled as dbEnabled, shareMap, type ContactDetails } from "@/lib/db";
 import type { Personal } from "@/lib/conclusion";
-import type { MapResult, Path } from "@/lib/scoring";
+import type { Answers, MapResult, Path } from "@/lib/scoring";
 
 type HeadingRef = RefObject<HTMLHeadingElement | null>;
 
@@ -79,11 +79,14 @@ export function ShareForm({
   mapId,
   chosenPath,
   personal,
+  answers,
   onShared,
 }: {
   mapId: string | null;
   chosenPath: Path | null;
   personal: Personal;
+  /** Her 24 answers, which travel with the first consent so Rê can read them with her. */
+  answers: Answers;
   onShared: () => void;
 }) {
   const t = useTranslations();
@@ -120,7 +123,7 @@ export function ShareForm({
 
     setError(null);
     setSending(true);
-    const ok = await shareMap(mapId, chosenPath, { ...contact, email: contact.email.trim() }, personal);
+    const ok = await shareMap(mapId, chosenPath, { ...contact, email: contact.email.trim() }, personal, answers);
     setSending(false);
     if (ok) onShared();
     else fail(null, t("contact.failed"));

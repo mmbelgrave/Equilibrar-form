@@ -93,6 +93,16 @@ create table if not exists public.contacts (
   question_for_re text -- J5, only with consent_share
 );
 
+-- Her 24 statement answers, 0–4 each, in question order. They live here and never on
+-- `maps`, because that is the whole point: while she is answering, the individual answers
+-- stay on her own device and only the six scores are saved. They travel only when she
+-- presses Share and ticks the first consent — Rê reads them with her in the first
+-- conversation, which is what the answers are for.
+alter table public.contacts add column if not exists answers smallint[];
+alter table public.contacts drop constraint if exists contacts_answers_shape;
+alter table public.contacts add constraint contacts_answers_shape
+  check (answers is null or (array_length(answers, 1) = 24 and 0 <= all (answers) and 4 >= all (answers)));
+
 create index if not exists contacts_map_id_idx on public.contacts (map_id);
 
 -- One share per Map. A second attempt — she walks back to the paths screen, or a stalled
@@ -196,6 +206,10 @@ drop policy if exists "a visitor may share her map once" on public.contacts;
 -- thing that ever sets `shared_at`, it refuses without consent, and it refuses a Map that
 -- was already shared. Her own words are stored only with the second, separate consent —
 -- the app leaves them out, and the length limits here are the backstop.
+-- The signature gained p_answers, so the old one has to go rather than sit beside it as a
+-- second version PostgREST cannot choose between.
+drop function if exists public.share_map(uuid, text, text, text, text, text, boolean, boolean, text, text);
+
 create or replace function public.share_map(
   p_map_id uuid,
   p_first_name text,
@@ -206,7 +220,8 @@ create or replace function public.share_map(
   p_consent_share boolean,
   p_consent_email boolean,
   p_vision text,
-  p_question text
+  p_question text,
+  p_answers jsonb default null
 ) returns void
 language plpgsql security definer set search_path = public as $fn$
 declare
@@ -233,12 +248,15 @@ begin
 
   insert into public.contacts (
     map_id, first_name, email, whatsapp, instagram,
-    consent_share, consent_email, vision, question_for_re
+    consent_share, consent_email, vision, question_for_re, answers
   ) values (
     v_id,
     left(p_first_name, 60), left(btrim(p_email), 254), left(p_whatsapp, 40), left(p_instagram, 60),
     true, coalesce(p_consent_email, false),
-    left(p_vision, 2000), left(p_question, 2000)
+    left(p_vision, 2000), left(p_question, 2000),
+    case when jsonb_typeof(p_answers) = 'array' and jsonb_array_length(p_answers) = 24
+         then array(select (jsonb_array_elements_text(p_answers))::smallint)
+         else null end
   );
 end;
 $fn$;
@@ -289,9 +307,9 @@ $fn$;
 -- the only things a visitor is meant to call, and each checks its own conditions.
 revoke execute on function public.delete_old_maps() from public, anon, authenticated;
 revoke execute on function public.is_admin() from public, anon;
-revoke execute on function public.share_map(uuid, text, text, text, text, text, boolean, boolean, text, text) from public;
+revoke execute on function public.share_map(uuid, text, text, text, text, text, boolean, boolean, text, text, jsonb) from public;
 revoke execute on function public.save_map(uuid, jsonb) from public;
-grant execute on function public.share_map(uuid, text, text, text, text, text, boolean, boolean, text, text) to anon, authenticated;
+grant execute on function public.share_map(uuid, text, text, text, text, text, boolean, boolean, text, text, jsonb) to anon, authenticated;
 grant execute on function public.save_map(uuid, jsonb) to anon, authenticated;
 grant execute on function public.is_admin() to authenticated;
 

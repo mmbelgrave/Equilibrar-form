@@ -1006,6 +1006,11 @@ export function Result({
 
       <PrintAnswers answers={answers} context={context} journey={journey} flagged={result.flagged} />
 
+      {/* Paper only: what this is and when it was made, at the foot of the last sheet. */}
+      <p className="print-footer t-helper">
+        {t("print.page")} · {formatDate(result.completed_at, locale)}
+      </p>
+
       <div className="no-print flex flex-col items-center gap-3 md:items-start">
         <button type="button" className="btn btn-primary" onClick={onContinue}>
           {t("result.continue")}

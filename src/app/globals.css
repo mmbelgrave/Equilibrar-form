@@ -168,8 +168,10 @@ body {
 .bg-build { background: var(--color-step-build); }
 .tex-line { stroke: var(--color-ink); }
 
-/* Print and forced colours: three textures at 45°, 90°, 135° — one per step. */
-@media print, (forced-colors: active) {
+/* Forced colours (high contrast mode) has no colours to give, so the step is carried by
+   three textures at 45°, 90°, 135° instead. Printing keeps the real colours: the printed
+   Map is the thing Rê puts in front of a woman, and it should look like the brand. */
+@media (forced-colors: active) {
   .fill-claim { fill: url(#tex-claim); }
   .fill-recover { fill: url(#tex-recover); }
   .fill-build { fill: url(#tex-build); }
@@ -183,22 +185,58 @@ body {
 .print-only { display: none; }
 
 @media print {
-  @page { size: A4; margin: 14mm 12mm; }
+  @page { size: A4; margin: 14mm 13mm 16mm; }
+
+  /* Without this, a browser drops every background and the Map prints as grey text on
+     white — which is what the first PDFs came out like. It is inherited, so one line
+     covers the wheel, the bars, the cards and the logo band. */
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
   .no-print { display: none !important; }
-  body { background: white; font-size: 11pt; }
-  .card-result { box-shadow: none; border: 0; padding: 0; }
-  /* The logo band keeps its rose, which is the brand's own surface. */
-  .band { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding-bottom: 4mm; }
+  body { background: white; font-size: 10.5pt; line-height: 1.55; }
   main { padding-bottom: 0 !important; }
   details { display: none; } /* "see the numbers" — the table is in the full print instead */
+
+  /* The logo band is the masthead of the printed Map. */
+  .band { padding: 5mm 0 4mm; margin-bottom: 5mm; border-bottom: 1.5pt solid var(--color-rose-600); }
+
+  /* On screen the result sits on a white card over the rose page; on paper the page is
+     already white, so the card is nothing but a box. The conclusion cards inside it keep
+     their surface, because that is what gives the printed page its structure. */
+  .card-result { box-shadow: none; border: 0; padding: 0; }
+  .card { border: 1px solid var(--color-line); }
+
   .avoid-break { break-inside: avoid; }
   h1, h2, h3 { break-after: avoid; }
   .card, .card-result { break-inside: auto; }
-  .print-rows > div { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 2px 0; border-bottom: 1px solid var(--color-line); }
+  .print-keep { break-inside: avoid; }
+
+  /* On her own Map the answers are a document of their own, so they start on a fresh
+     sheet. On Rê's page they are already the whole of what she prints. */
+  .print-only { break-before: page; }
+  .print-sheet h2 { padding-bottom: 2mm; border-bottom: 1.5pt solid var(--color-rose-600); }
+  .print-sheet h3 {
+    margin-top: 7mm; padding-left: 8px;
+    border-left: 3pt solid var(--color-rose-500);
+  }
+
+  /* One question and her answer to it, banded so the eye can follow the line across. */
+  .print-rows { margin-top: 2mm; }
+  .print-rows > div {
+    display: grid; grid-template-columns: 1fr auto; gap: 12px;
+    padding: 3px 6px; break-inside: avoid;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .print-rows > div:nth-child(odd) { background: var(--color-rose-50); }
   .print-rows dt { color: var(--color-ink); }
-  .print-rows dd { margin: 0; font-weight: 700; text-align: right; }
-  .print-only h3 { margin-top: 6mm; }
+  .print-rows dd { margin: 0; font-weight: 700; text-align: right; color: var(--color-plum-700); }
+
+  /* The closing line, on the last page of each print. */
+  .print-footer { display: block; margin-top: 8mm; padding-top: 3mm; border-top: 1px solid var(--color-line); }
 }
+
+/* The footer belongs to paper only. */
+.print-footer { display: none; }
 
 /* Only the full print carries her answers. */
 html.printing-full .print-only { display: block; }

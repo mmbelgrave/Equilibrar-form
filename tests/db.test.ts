@@ -2,7 +2,7 @@
 // parts: the payload built while she answers, the status of a Map, the overview and the CSV.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { looksLikeProjectUrl, overview, pillarsAnswered, progressPayload, statusOf, toCsv, type AdminMap } from "../src/lib/db.ts";
+import { answersToSend, looksLikeProjectUrl, overview, pillarsAnswered, progressPayload, statusOf, toCsv, type AdminMap } from "../src/lib/db.ts";
 import { emptyContext, emptyJourney, type Context, type Journey } from "../src/lib/scoring.ts";
 
 const CONTEXT: Context = {
@@ -184,4 +184,12 @@ test("a project URL that is not a URL counts as no database", () => {
   assert.equal(looksLikeProjectUrl("eyJhbGciOiJIUzI1NiJ9.abc.def"), false);
   assert.equal(looksLikeProjectUrl("abcdefghijkl.supabase.co"), false); // no protocol
   assert.equal(looksLikeProjectUrl(""), false);
+});
+
+test("her 24 answers go to Rê only as a complete set, and only with the consent", () => {
+  const full = Array(24).fill(2) as (0 | 1 | 2 | 3 | 4)[];
+  assert.deepEqual(answersToSend(full, true), full);
+  assert.equal(answersToSend(full, false), null, "the consent box is what sends them");
+  assert.equal(answersToSend([...full.slice(0, 23), null], true), null, "an unfinished Map sends nothing");
+  assert.equal(answersToSend([], true), null);
 });

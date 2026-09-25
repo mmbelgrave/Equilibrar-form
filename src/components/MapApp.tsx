@@ -488,6 +488,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                         mapId={state.mapId}
                         chosenPath={chosenPath}
                         personal={state.personal}
+                        answers={state.answers}
                         onShared={() => {
                           update((s) => ({
                             ...s,

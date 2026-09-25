@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bars } from "@/components/Bars";
 import { Header } from "@/components/Header";
+import { PrintAnswers } from "@/components/PrintAnswers";
 import { Wheel } from "@/components/Wheel";
 import {
   db,
@@ -20,7 +21,17 @@ import {
   type MapStatus,
 } from "@/lib/db";
 import { MESSAGES, PATHS, formatDate } from "@/lib/i18n";
-import { PATHS_ALL, PILLARS, focusPillars, type Pillar, type Scores } from "@/lib/scoring";
+import {
+  PATHS_ALL,
+  PILLARS,
+  focusPillars,
+  type Answer,
+  type Answers,
+  type Context,
+  type Journey,
+  type Pillar,
+  type Scores,
+} from "@/lib/scoring";
 
 /**
  * Rê's admin view (spec v4 §12). It is in the same app, protected by the database's own
@@ -89,7 +100,10 @@ const T = {
   deleteYes: "Sim, apagar",
   deleteNo: "Não",
   deleteFailed: "Não deu para apagar. Tente de novo.",
-  print: "Imprimir",
+  print: "Imprimir este Mapa",
+  printHint: "Escolha “Salvar como PDF” para guardar o Mapa dela antes da conversa.",
+  answersTitle: "As respostas dela",
+  noAnswers: "Este Mapa foi compartilhado antes de as respostas serem guardadas, então só as pontuações estão aqui.",
   pillarOf: (n: number) => `Pilar ${n} de 6`,
   waiting: "Esperando resposta há mais de 48 horas",
   sinceShared: (days: number) => (days < 1 ? "Compartilhou hoje" : `Compartilhou há ${Math.floor(days)} dia(s)`),
@@ -102,6 +116,31 @@ const PILLAR_PT: Record<Pillar, string> = {
   calm: "Calma",
   food: "Alimentação",
   strength: "Força",
+};
+
+/** The coded answers on a row, in the shape the printed Map is built from. */
+const asContext = (m: AdminMap): Context => ({
+  age: m.age_band as Context["age"],
+  stage: m.life_stage as Context["stage"],
+  caring: m.caring_for as Context["caring"],
+  support: m.support_home as Context["support"],
+  flex: (m.work_flex === null ? null : m.work_flex === "na" ? "na" : Number(m.work_flex)) as Context["flex"],
+  treatment: m.in_treatment as Context["treatment"],
+  topics: (m.focus_topics ?? []) as Context["topics"],
+  duration: m.duration as Context["duration"],
+});
+
+const asJourney = (m: AdminMap): Journey => ({
+  tried: (m.tried ?? []) as Journey["tried"],
+  obstacles: (m.obstacles ?? []) as Journey["obstacles"],
+  readiness: m.readiness as Journey["readiness"],
+});
+
+/** Her 24 answers, if she sent them: 0–4 each, anything else is not a set we can print. */
+const answersOf = (m: AdminMap): Answers | null => {
+  const raw = m.contact?.answers;
+  if (!Array.isArray(raw) || raw.length !== 24) return null;
+  return raw.every((a) => Number.isInteger(a) && a >= 0 && a <= 4) ? (raw as Answer[]) : null;
 };
 
 /** A Map with the things that depend on the clock worked out when the list is read,
@@ -177,7 +216,7 @@ export function Admin() {
           </p>
         )}
 
-        <Overview sums={sums} />
+        <div className="no-print"><Overview sums={sums} /></div>
 
         <div className="no-print flex flex-col gap-2">
           <FilterRow
@@ -223,7 +262,7 @@ export function Admin() {
         ) : rows.length === 0 ? (
           <p>{filtered ? T.noneHere : T.none}</p>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className="no-print flex flex-col gap-2">
             {rows.map((m) => (
               <li key={m.id}>
                 <button type="button" className="card w-full px-4 py-3 text-left" onClick={() => setOpen(m)}>
@@ -289,9 +328,9 @@ function Shell({ children, onSignOut }: { children: React.ReactNode; onSignOut?:
       <Header locale="pt" hrefs={{ pt: PATHS.pt.map, en: PATHS.en.map }} variant="compact" />
       <div className="mx-auto flex w-full max-w-[900px] flex-1 flex-col gap-4 px-5 pt-6 pb-12">
         <div className="flex items-baseline justify-between gap-4">
-          <h1 className="t-title">{T.title}</h1>
+          <h1 className="no-print t-title">{T.title}</h1>
           {onSignOut && (
-            <button type="button" className="link min-h-11" onClick={onSignOut}>
+            <button type="button" className="no-print link min-h-11" onClick={onSignOut}>
               {T.signOut}
             </button>
           )}
@@ -475,6 +514,7 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
   const [confirming, setConfirming] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const scores = PILLARS.map((p) => [PILLAR_PT[p], map[`score_${p}` as keyof AdminMap] as number | null] as const);
+  const answers = answersOf(map);
   const complete = scores.every(([, v]) => typeof v === "number");
   // Her own wheel, the same one she saw (§12). Only a finished Map has all six.
   const wheelScores = complete
@@ -493,7 +533,7 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
         <h2 ref={headingRef} tabIndex={-1} className="t-pillar !text-xl outline-none">
           {map.contact?.first_name || T.detail}
         </h2>
-        <button type="button" className="link min-h-11" onClick={onClose}>
+        <button type="button" className="no-print link min-h-11" onClick={onClose}>
           {T.close}
         </button>
       </div>
@@ -516,15 +556,29 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
         </dl>
       )}
 
-      <div>
-        <p className="t-label">{T.answers}</p>
-        <p className="t-helper">
-          {[map.age_band, map.life_stage, map.caring_for, map.in_treatment, map.duration, ...(map.focus_topics ?? [])]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-        <p className="t-helper">{[...(map.tried ?? []), ...(map.obstacles ?? []), map.readiness].filter(Boolean).join(" · ")}</p>
-      </div>
+      {/* Everything she answered, written out the way it reads on her own printed Map —
+          this is what Rê goes through with her in the first conversation. */}
+      {answers ? (
+        <PrintAnswers
+          answers={answers}
+          context={asContext(map)}
+          journey={asJourney(map)}
+          flagged={null}
+          always
+          title={T.answersTitle}
+        />
+      ) : (
+        <div>
+          <p className="t-label">{T.answersTitle}</p>
+          <p className="t-helper">{T.noAnswers}</p>
+          <p className="t-helper">
+            {[map.age_band, map.life_stage, map.caring_for, map.in_treatment, map.duration, ...(map.focus_topics ?? [])]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+          <p className="t-helper">{[...(map.tried ?? []), ...(map.obstacles ?? []), map.readiness].filter(Boolean).join(" · ")}</p>
+        </div>
+      )}
 
       {map.contact && (
         <div>
@@ -552,7 +606,7 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="no-print flex flex-wrap gap-2">
         {(["open", "contacted", "joined", "not_now"] as const).map((value) => (
           <button
             key={value}
@@ -566,7 +620,7 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
         ))}
       </div>
 
-      <label className="t-label" htmlFor="admin-note">
+      <label className="no-print t-label" htmlFor="admin-note">
         {T.note}
       </label>
       <textarea
@@ -574,7 +628,7 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
         rows={3}
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        className="w-full rounded-[12px] border border-line bg-surface px-4 py-3 text-base"
+        className="no-print w-full rounded-[12px] border border-line bg-surface px-4 py-3 text-base"
       />
       {failed && (
         <p role="alert" className="card border-l-4 !border-l-attention px-4 py-3">
@@ -583,7 +637,7 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
       )}
       <button
         type="button"
-        className="btn btn-primary"
+        className="no-print btn btn-primary"
         disabled={saving}
         onClick={async () => {
           setSaving(true);
@@ -598,9 +652,10 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
       </button>
 
       <div className="no-print flex flex-wrap items-center gap-3">
-        <button type="button" className="link min-h-11" onClick={() => window.print()}>
+        <button type="button" className="btn btn-secondary !w-auto" onClick={() => window.print()}>
           {T.print}
         </button>
+        <span className="t-helper">{T.printHint}</span>
         {/* Spec §13, the right to be forgotten. Two presses, never one. */}
         {confirming ? (
           <>

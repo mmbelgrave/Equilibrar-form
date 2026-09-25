@@ -199,3 +199,12 @@ test("nothing promises the PDF or the email sequence before they exist", () => {
     assert.ok(!/pdf/i.test(messages["contact.consentEmail"]), `${locale}: consentEmail still promises a PDF`);
   }
 });
+
+test("the consent box says her answers go too, because they do (§13)", () => {
+  // They used to stay on her device for good. Now they travel when she shares, so that Rê
+  // can read them with her — the words she ticks have to say so.
+  for (const [locale, messages] of Object.entries({ pt, en })) {
+    assert.match(messages["contact.consentShare"], /respostas|answers/i, `${locale} contact.consentShare`);
+    assert.match(messages["privacy.p6Share"], /24/, `${locale} privacy.p6Share should name the 24 answers`);
+  }
+});
