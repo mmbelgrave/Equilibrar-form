@@ -129,14 +129,52 @@ drop policy if exists "a visitor may start a map" on public.maps;
 create policy "a visitor may start a map" on public.maps
   for insert to anon with check (shared_at is null and status = 'open' and note is null);
 
--- The window matches how long an unfinished Map is kept (30 days), so a woman who starts on
--- Tuesday and finishes on Thursday keeps saving (review 5, finding 18). `shared_at is null`
--- is now on both halves: a visitor can no longer mark any Map shared. Only `share_map()`
--- can, and only in the same breath as writing the contact row (review 5, finding 5).
+-- There is no update rule for a visitor, and that is deliberate. Postgres applies the READ
+-- rules to the rows an `update … where id = …` has to find, and a visitor may not read any
+-- Map — so an update by id can never match anything. It answers "204, nothing changed", the
+-- app ignores failures by design, and every Map would have sat in Rê's list frozen at the
+-- first step with no answers. Saving goes through `save_map()` below instead, the same way
+-- sharing goes through `share_map()`.
 drop policy if exists "a visitor may update an unshared map" on public.maps;
-create policy "a visitor may update an unshared map" on public.maps
-  for update to anon using (shared_at is null and created_at > now() - interval '30 days')
-  with check (shared_at is null and status = 'open' and note is null);
+
+-- Saving as she answers. Only the columns listed here can be written, `shared_at`, `status`
+-- and `note` are not among them, and a Map that was already shared or is older than the
+-- 30 days §13 keeps it for is left alone. Anything not in the patch keeps its value.
+create or replace function public.save_map(p_map_id uuid, p_patch jsonb) returns void
+language plpgsql security definer set search_path = public as $fn$
+begin
+  update public.maps set
+    locale          = coalesce(p_patch->>'locale', locale),
+    step            = coalesce(p_patch->>'step', step),
+    age_band        = case when p_patch ? 'age_band'        then p_patch->>'age_band'        else age_band end,
+    life_stage      = case when p_patch ? 'life_stage'      then p_patch->>'life_stage'      else life_stage end,
+    caring_for      = case when p_patch ? 'caring_for'      then p_patch->>'caring_for'      else caring_for end,
+    support_home    = case when p_patch ? 'support_home'    then (p_patch->>'support_home')::smallint else support_home end,
+    work_flex       = case when p_patch ? 'work_flex'       then p_patch->>'work_flex'       else work_flex end,
+    in_treatment    = case when p_patch ? 'in_treatment'    then p_patch->>'in_treatment'    else in_treatment end,
+    duration        = case when p_patch ? 'duration'        then p_patch->>'duration'        else duration end,
+    readiness       = case when p_patch ? 'readiness'       then p_patch->>'readiness'       else readiness end,
+    focus_topics    = case when jsonb_typeof(p_patch->'focus_topics') = 'array'
+                           then array(select jsonb_array_elements_text(p_patch->'focus_topics')) else focus_topics end,
+    tried           = case when jsonb_typeof(p_patch->'tried') = 'array'
+                           then array(select jsonb_array_elements_text(p_patch->'tried')) else tried end,
+    obstacles       = case when jsonb_typeof(p_patch->'obstacles') = 'array'
+                           then array(select jsonb_array_elements_text(p_patch->'obstacles')) else obstacles end,
+    score_space     = case when p_patch ? 'score_space'     then (p_patch->>'score_space')::smallint    else score_space end,
+    score_routine   = case when p_patch ? 'score_routine'   then (p_patch->>'score_routine')::smallint  else score_routine end,
+    score_sleep     = case when p_patch ? 'score_sleep'     then (p_patch->>'score_sleep')::smallint    else score_sleep end,
+    score_calm      = case when p_patch ? 'score_calm'      then (p_patch->>'score_calm')::smallint     else score_calm end,
+    score_food      = case when p_patch ? 'score_food'      then (p_patch->>'score_food')::smallint     else score_food end,
+    score_strength  = case when p_patch ? 'score_strength'  then (p_patch->>'score_strength')::smallint else score_strength end,
+    focus_pillar    = case when p_patch ? 'focus_pillar'    then p_patch->>'focus_pillar'    else focus_pillar end,
+    second_pillar   = case when p_patch ? 'second_pillar'   then p_patch->>'second_pillar'   else second_pillar end,
+    recommended_path = case when p_patch ? 'recommended_path' then p_patch->>'recommended_path' else recommended_path end,
+    finished_at     = case when p_patch ? 'finished_at'     then (p_patch->>'finished_at')::timestamptz else finished_at end
+  where id = p_map_id
+    and shared_at is null
+    and created_at > now() - interval '30 days';
+end;
+$fn$;
 
 -- The old rule let a visitor write a contact row against any Map that was already shared.
 -- Sharing now happens only inside share_map(), so nothing writes this table directly.
@@ -232,12 +270,19 @@ $fn$;
 -- ------------------------------------------------- who may run what -----------------
 -- Postgres lets everybody run a new function, and PostgREST puts everything in `public`
 -- behind /rest/v1/rpc/. Without these lines the public key could run the deletion job or
--- ask the database whether it is an admin (review 5, finding 6). `share_map` is the one
--- thing a visitor is meant to call, and it checks its own conditions.
-revoke execute on function public.delete_old_maps() from public;
-revoke execute on function public.is_admin() from public;
+-- ask the database whether it is an admin (review 5, finding 6).
+--
+-- `from public` is not enough: Supabase grants EXECUTE on every new function to `anon` and
+-- `authenticated` by name, through default privileges, and an explicit grant survives a
+-- revoke aimed at PUBLIC. Tested against the live project, where `delete_old_maps` answered
+-- the public key with 204 until these two names were added. `share_map` and `save_map` are
+-- the only things a visitor is meant to call, and each checks its own conditions.
+revoke execute on function public.delete_old_maps() from public, anon, authenticated;
+revoke execute on function public.is_admin() from public, anon;
 revoke execute on function public.share_map(uuid, text, text, text, text, text, boolean, boolean, text, text) from public;
+revoke execute on function public.save_map(uuid, jsonb) from public;
 grant execute on function public.share_map(uuid, text, text, text, text, text, boolean, boolean, text, text) to anon, authenticated;
+grant execute on function public.save_map(uuid, jsonb) to anon, authenticated;
 grant execute on function public.is_admin() to authenticated;
 
 -- --------------------------------------------------------- the nightly job ---------

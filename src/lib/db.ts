@@ -12,8 +12,22 @@ import { PILLARS, type Context, type Journey, type MapResult, type Path, type Sc
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-/** False until Rê's Supabase project is configured at build time. */
-export const enabled = Boolean(url && key);
+/**
+ * A wrong value must never break the Map. When the project URL was once set to a key by
+ * mistake, supabase-js threw "Invalid supabaseUrl" on every page — the questionnaire itself
+ * survived only because the call sits inside an effect. Anything that is not an http(s)
+ * address is treated as "no database", which is the state the site is safe in.
+ */
+export function looksLikeProjectUrl(value: string): boolean {
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
+/** False until Rê's Supabase project is configured at build time, with values that work. */
+export const enabled = Boolean(url && key && looksLikeProjectUrl(url));
 
 let client: SupabaseClient | null = null;
 export function db(): SupabaseClient | null {
@@ -106,7 +120,15 @@ export async function startMap(locale: "pt" | "en"): Promise<string | null> {
   return error ? null : id;
 }
 
-/** Saves her progress. Failures are ignored on purpose: her own copy is the one that counts. */
+/**
+ * Saves her progress. Failures are ignored on purpose: her own copy is the one that counts.
+ *
+ * It goes through `save_map()` in the database rather than a plain update, because Postgres
+ * applies the read rules to the rows an `update … where id = …` has to find, and a visitor
+ * may not read any Map. A plain update matched nothing and answered "204, nothing changed" —
+ * every Map would have sat in Rê's list frozen at the first step. Tested against the live
+ * project before this was changed.
+ */
 export async function saveProgress(
   id: string,
   locale: "pt" | "en",
@@ -117,7 +139,7 @@ export async function saveProgress(
 ): Promise<void> {
   const supabase = db();
   if (!supabase) return;
-  await supabase.from("maps").update(progressPayload(locale, step, context, journey, scores)).eq("id", id);
+  await supabase.rpc("save_map", { p_map_id: id, p_patch: progressPayload(locale, step, context, journey, scores) });
 }
 
 /**
@@ -128,9 +150,9 @@ export async function saveProgress(
 export async function saveResult(id: string, result: MapResult, attempt = 0): Promise<void> {
   const supabase = db();
   if (!supabase) return;
-  const { error } = await supabase
-    .from("maps")
-    .update({
+  const { error } = await supabase.rpc("save_map", {
+    p_map_id: id,
+    p_patch: {
       step: "result",
       finished_at: result.completed_at,
       focus_pillar: result.focus_pillar,
@@ -142,8 +164,8 @@ export async function saveResult(id: string, result: MapResult, attempt = 0): Pr
       score_calm: result.score_calm,
       score_food: result.score_food,
       score_strength: result.score_strength,
-    })
-    .eq("id", id);
+    },
+  });
   if (error && attempt === 0) {
     await new Promise((resume) => setTimeout(resume, 2000));
     await saveResult(id, result, 1);

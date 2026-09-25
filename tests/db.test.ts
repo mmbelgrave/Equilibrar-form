@@ -2,7 +2,7 @@
 // parts: the payload built while she answers, the status of a Map, the overview and the CSV.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { overview, pillarsAnswered, progressPayload, statusOf, toCsv, type AdminMap } from "../src/lib/db.ts";
+import { looksLikeProjectUrl, overview, pillarsAnswered, progressPayload, statusOf, toCsv, type AdminMap } from "../src/lib/db.ts";
 import { emptyContext, emptyJourney, type Context, type Journey } from "../src/lib/scoring.ts";
 
 const CONTEXT: Context = {
@@ -173,4 +173,15 @@ test("the CSV has a header, one line per Map, and survives commas and quotes", (
 test("the CSV never carries the check-in or the 24 answers", () => {
   const csv = toCsv([map({ finished_at: ago(1) })], now);
   for (const word of ["flagged", "checkin", "answers"]) assert.ok(!csv.includes(word), word);
+});
+
+test("a project URL that is not a URL counts as no database", () => {
+  // The live site was once built with the publishable key in the URL variable, and every
+  // page threw "Invalid supabaseUrl". A wrong value must leave the Map in its safe state.
+  assert.equal(looksLikeProjectUrl("https://abcdefghijkl.supabase.co"), true);
+  assert.equal(looksLikeProjectUrl("http://localhost:5433"), true);
+  assert.equal(looksLikeProjectUrl("sb_publishable_GHRiiN1aXyb1RVAzfP8JaA"), false);
+  assert.equal(looksLikeProjectUrl("eyJhbGciOiJIUzI1NiJ9.abc.def"), false);
+  assert.equal(looksLikeProjectUrl("abcdefghijkl.supabase.co"), false); // no protocol
+  assert.equal(looksLikeProjectUrl(""), false);
 });
