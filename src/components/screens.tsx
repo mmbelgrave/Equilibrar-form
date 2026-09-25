@@ -6,6 +6,7 @@ import { Bars } from "@/components/Bars";
 import { Wheel } from "@/components/Wheel";
 import { PrintAnswers } from "@/components/PrintAnswers";
 import { conclusionBlocks, type Personal } from "@/lib/conclusion";
+import { enabled as dbEnabled } from "@/lib/db";
 import { joinFragments, quoteReady } from "@/lib/sentences";
 import { PATHS, formatDate, type Locale } from "@/lib/i18n";
 import {
@@ -713,7 +714,7 @@ export function JourneyScreen({
         />
         <span>{t("share.consent")}</span>
       </label>
-      <p className="t-helper">{t("share.local")}</p>
+      <p className="t-helper">{t(dbEnabled ? "share.localShared" : "share.local")}</p>
     </>
   );
 

@@ -1,11 +1,15 @@
 "use client";
 
 import { NextIntlClientProvider } from "next-intl";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Bars } from "@/components/Bars";
 import { Header } from "@/components/Header";
+import { Wheel } from "@/components/Wheel";
 import {
   db,
+  deleteMap,
   enabled as dbEnabled,
+  isAdmin,
   listMaps,
   overview,
   pillarsAnswered,
@@ -16,7 +20,7 @@ import {
   type MapStatus,
 } from "@/lib/db";
 import { MESSAGES, PATHS, formatDate } from "@/lib/i18n";
-import { PILLARS, type Pillar } from "@/lib/scoring";
+import { PATHS_ALL, PILLARS, focusPillars, type Pillar, type Scores } from "@/lib/scoring";
 
 /**
  * Rê's admin view (spec v4 §12). It is in the same app, protected by the database's own
@@ -33,12 +37,18 @@ const T = {
   email: "E-mail",
   sent: "Pronto. Olhe o seu e-mail e clique no link.",
   signOut: "Sair",
-  noAccess: "Esta conta não tem acesso. Fale com quem cuida do sistema.",
+  noAccess: "Não consegui mandar o link. Confira o e-mail, ou fale com quem cuida do sistema.",
+  noAccessAccount: "Esta conta não está na lista de quem pode ver os Mapas. Fale com quem cuida do sistema.",
   notConfigured: "O banco de dados ainda não está configurado, então não há Mapas para mostrar.",
+  failed: "Não deu para falar com o banco de dados. Atualize a página.",
   loading: "Carregando…",
   none: "Nenhum Mapa ainda.",
+  noneHere: "Nenhum Mapa com esses filtros.",
   filters: "Mostrar",
   all: "Todos",
+  filterPath: "Caminho",
+  filterPillar: "Área",
+  filterLocale: "Idioma",
   status: {
     in_progress: "Em andamento",
     stopped: "Parou",
@@ -46,6 +56,7 @@ const T = {
     shared: "Compartilhou",
   } as Record<MapStatus, string>,
   reStatus: { open: "Aberto", contacted: "Já falei", joined: "Entrou", not_now: "Agora não" } as Record<string, string>,
+  pathName: { community: "Comunidade", consultoria: "Consultoria", mentorship: "Mentoria" } as Record<string, string>,
   overview: "Resumo",
   started: "Começaram",
   finished: "Terminaram",
@@ -53,8 +64,11 @@ const T = {
   week: "7 dias",
   month: "30 dias",
   completion: "Taxa de conclusão",
+  completionNote: "Dos Mapas que já pararam ou terminaram — os que estão em andamento ficam de fora.",
   shareRate: "Taxa de compartilhamento",
   lowest: "Pilar mais baixo, com que frequência",
+  averages: "Média de cada pilar, entre quem terminou",
+  byLanguage: "Começaram e terminaram, por idioma",
   stoppedAt: "Onde elas param",
   followed: "Seguiram a sugestão",
   export: "Baixar CSV",
@@ -64,10 +78,21 @@ const T = {
   answers: "Respostas",
   note: "Anotação",
   save: "Salvar",
-  saved: "Salvo",
+  saving: "Salvando…",
+  saveFailed: "Não deu para salvar. Tente de novo.",
   whatsapp: "Abrir WhatsApp",
+  consentEmailYes: "Aceitou receber e-mails da Rê",
+  consentEmailNo: "Não aceitou receber e-mails",
+  consentShare: "Deixou a Rê ver o Mapa dela",
+  delete: "Apagar este Mapa",
+  deleteConfirm: "Apagar mesmo? O Mapa e os dados dela somem para sempre.",
+  deleteYes: "Sim, apagar",
+  deleteNo: "Não",
+  deleteFailed: "Não deu para apagar. Tente de novo.",
+  print: "Imprimir",
   pillarOf: (n: number) => `Pilar ${n} de 6`,
   waiting: "Esperando resposta há mais de 48 horas",
+  sinceShared: (days: number) => (days < 1 ? "Compartilhou hoje" : `Compartilhou há ${Math.floor(days)} dia(s)`),
 };
 
 const PILLAR_PT: Record<Pillar, string> = {
@@ -79,14 +104,19 @@ const PILLAR_PT: Record<Pillar, string> = {
   strength: "Força",
 };
 
-/** A Map with the two things that depend on the clock worked out when the list is read,
+/** A Map with the things that depend on the clock worked out when the list is read,
  * so nothing reads the time while the page is drawing. */
-type Row = AdminMap & { rowStatus: MapStatus; late: boolean };
+type Row = AdminMap & { rowStatus: MapStatus; late: boolean; sharedDays: number | null };
+
+type Filters = { status: MapStatus | "all"; path: string; pillar: string; locale: string };
+const NO_FILTERS: Filters = { status: "all", path: "all", pillar: "all", locale: "all" };
 
 export function Admin() {
   const [email, setEmail] = useState<string | null>(null);
+  const [allowed, setAllowed] = useState<boolean | null>(null);
   const [maps, setMaps] = useState<Row[] | null>(null);
-  const [filter, setFilter] = useState<MapStatus | "all">("all");
+  const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [open, setOpen] = useState<Row | null>(null);
 
   // Who is signed in, and stay in step with the sign-in link when she follows it.
@@ -101,12 +131,16 @@ export function Admin() {
   const load = useCallback(async () => {
     if (!email) return;
     const now = new Date();
+    setAllowed(await isAdmin());
+    const { maps: rows, error: failure } = await listMaps();
+    setError(failure);
     setMaps(
-      (await listMaps()).map((map) => ({
+      rows.map((map) => ({
         ...map,
         rowStatus: statusOf(map, now),
         // Rê's promise is a reply within 48 hours; later than that shows in the attention colour.
         late: !!map.shared_at && map.status === "open" && now.getTime() - new Date(map.shared_at).getTime() > 48 * 3_600_000,
+        sharedDays: map.shared_at ? (now.getTime() - new Date(map.shared_at).getTime()) / 86_400_000 : null,
       })),
     );
   }, [email]);
@@ -119,41 +153,75 @@ export function Admin() {
   if (!dbEnabled) return <Shell>{T.notConfigured}</Shell>;
   if (!email) return <SignIn />;
 
-  const rows = (maps ?? []).filter((m) => filter === "all" || m.rowStatus === filter);
+  const rows = (maps ?? []).filter(
+    (m) =>
+      (filters.status === "all" || m.rowStatus === filters.status) &&
+      (filters.path === "all" || m.chosen_path === filters.path) &&
+      (filters.pillar === "all" || m.focus_pillar === filters.pillar || m.second_pillar === filters.pillar) &&
+      (filters.locale === "all" || m.locale === filters.locale),
+  );
   const sums = overview(maps ?? []);
+  const filtered = JSON.stringify(filters) !== JSON.stringify(NO_FILTERS);
 
   return (
     <Shell onSignOut={() => db()?.auth.signOut()}>
       <section className="flex flex-col gap-6">
+        {error && (
+          <p role="alert" className="card border-l-4 !border-l-attention px-4 py-3">
+            {T.failed}
+          </p>
+        )}
+        {allowed === false && !error && (
+          <p role="alert" className="card border-l-4 !border-l-attention px-4 py-3">
+            {T.noAccessAccount}
+          </p>
+        )}
+
         <Overview sums={sums} />
 
-        <div className="no-print flex flex-wrap items-center gap-2">
-          <span className="t-label">{T.filters}</span>
-          {(["all", "shared", "finished", "in_progress", "stopped"] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              className={"chip " + (filter === value ? "!border-rose-600 bg-rose-100" : "")}
-              aria-pressed={filter === value}
-              onClick={() => setFilter(value)}
-            >
-              {value === "all" ? T.all : T.status[value]}
+        <div className="no-print flex flex-col gap-2">
+          <FilterRow
+            label={T.filters}
+            value={filters.status}
+            options={(["all", "shared", "finished", "in_progress", "stopped"] as const).map((v) => ({
+              value: v,
+              label: v === "all" ? T.all : T.status[v],
+            }))}
+            onChange={(status) => setFilters((f) => ({ ...f, status: status as Filters["status"] }))}
+          />
+          <FilterRow
+            label={T.filterPath}
+            value={filters.path}
+            options={[{ value: "all", label: T.all }, ...PATHS_ALL.map((p) => ({ value: p, label: T.pathName[p] ?? p }))]}
+            onChange={(path) => setFilters((f) => ({ ...f, path }))}
+          />
+          <FilterRow
+            label={T.filterPillar}
+            value={filters.pillar}
+            options={[{ value: "all", label: T.all }, ...PILLARS.map((p) => ({ value: p, label: PILLAR_PT[p] }))]}
+            onChange={(pillar) => setFilters((f) => ({ ...f, pillar }))}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterRow
+              label={T.filterLocale}
+              value={filters.locale}
+              options={[
+                { value: "all", label: T.all },
+                { value: "pt", label: "PT" },
+                { value: "en", label: "EN" },
+              ]}
+              onChange={(locale) => setFilters((f) => ({ ...f, locale }))}
+            />
+            <button type="button" className="link ml-auto min-h-11" onClick={() => downloadCsv(rows)} disabled={!rows.length}>
+              {T.export}
             </button>
-          ))}
-          <button
-            type="button"
-            className="link ml-auto min-h-11"
-            onClick={() => downloadCsv(rows)}
-            disabled={!rows.length}
-          >
-            {T.export}
-          </button>
+          </div>
         </div>
 
         {maps === null ? (
           <p>{T.loading}</p>
         ) : rows.length === 0 ? (
-          <p>{T.none}</p>
+          <p>{filtered ? T.noneHere : T.none}</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {rows.map((m) => (
@@ -168,7 +236,11 @@ export function Admin() {
       </section>
 
       {open && (
+        // The key rebuilds the panel for each Map. Without it, opening a second Map while
+        // the first is still on screen kept the first one's note and status, and saving
+        // wrote them onto the second woman's row (review 5, finding 14).
         <Detail
+          key={open.id}
           map={open}
           onClose={() => setOpen(null)}
           onSaved={async () => {
@@ -178,6 +250,35 @@ export function Admin() {
         />
       )}
     </Shell>
+  );
+}
+
+function FilterRow({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="t-label w-20">{label}</span>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          className={"chip " + (value === o.value ? "!border-rose-600 bg-rose-100" : "")}
+          aria-pressed={value === o.value}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -212,7 +313,13 @@ function SignIn() {
     if (!supabase) return;
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: typeof window === "undefined" ? undefined : window.location.href },
+      // Anyone can open this page, so it must not also be a sign-up box: without this, any
+      // address typed here would get an account and an email out of Rê's project
+      // (review 5, finding 7).
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: typeof window === "undefined" ? undefined : window.location.href,
+      },
     });
     if (error) setError(T.noAccess);
     else setSent(true);
@@ -260,7 +367,7 @@ function MapRow({ map }: { map: Row }) {
         </span>
       )}
       {!map.finished_at && <span className="t-helper">{T.pillarOf(pillarsAnswered(map))}</span>}
-      {map.chosen_path && <span className="t-label">{map.chosen_path}</span>}
+      {map.chosen_path && <span className="t-label">{T.pathName[map.chosen_path] ?? map.chosen_path}</span>}
       {late && <span className="t-helper text-attention">{T.waiting}</span>}
     </span>
   );
@@ -274,6 +381,7 @@ function Overview({ sums }: { sums: ReturnType<typeof overview> }) {
     </div>
   );
   const lowest = Object.entries(sums.lowest).sort((a, b) => b[1] - a[1]);
+  const averages = PILLARS.map((p) => [p, sums.averages[p]] as const).filter(([, v]) => v !== null);
   return (
     <section className="flex flex-col gap-3">
       <h2 className="t-label">{T.overview}</h2>
@@ -283,10 +391,60 @@ function Overview({ sums }: { sums: ReturnType<typeof overview> }) {
         {box(`${T.shared} · ${T.week}`, String(sums.week.shared))}
         {box(T.completion, `${sums.completionRate}%`)}
         {box(`${T.started} · ${T.month}`, String(sums.month.started))}
-        {box("PT / EN · 30 d", `${sums.byLocale.pt} / ${sums.byLocale.en}`)}
+        {box(`${T.finished} · ${T.month}`, String(sums.month.finished))}
         {box(T.shareRate, `${sums.shareRate}%`)}
         {sums.followedRecommendation !== null && box(T.followed, `${sums.followedRecommendation}%`)}
       </div>
+      <p className="t-helper">{T.completionNote}</p>
+
+      {/* §12 asks for started and finished by language, not one count of each language. */}
+      <div className="card px-4 py-3">
+        <p className="t-label">{T.byLanguage}</p>
+        <table className="mt-2 w-full text-left">
+          <thead>
+            <tr className="t-helper">
+              <th scope="col" />
+              <th scope="col">{`${T.started} · ${T.week}`}</th>
+              <th scope="col">{`${T.finished} · ${T.week}`}</th>
+              <th scope="col">{`${T.started} · ${T.month}`}</th>
+              <th scope="col">{`${T.finished} · ${T.month}`}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(["pt", "en"] as const).map((l) => (
+              <tr key={l}>
+                <th scope="row" className="t-label">
+                  {l.toUpperCase()}
+                </th>
+                <td className="t-num text-ink">{sums.languages.week[l].started}</td>
+                <td className="t-num text-ink">{sums.languages.week[l].finished}</td>
+                <td className="t-num text-ink">{sums.languages.month[l].started}</td>
+                <td className="t-num text-ink">{sums.languages.month[l].finished}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {averages.length > 0 && (
+        <div className="card px-4 py-3">
+          <p className="t-label">{T.averages}</p>
+          <ul className="mt-2 flex flex-col gap-1">
+            {averages.map(([pillar, value]) => (
+              <li key={pillar} className="flex items-center gap-2">
+                <span className="w-28">{PILLAR_PT[pillar]}</span>
+                <span
+                  className="bar-fill block h-3 rounded-r-[4px] bg-plum-600"
+                  style={{ width: `${(value ?? 0) * 0.6}%` }}
+                  aria-hidden="true"
+                />
+                <span className="t-num text-ink">{value}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {lowest.length > 0 && (
         <div className="card px-4 py-3">
           <p className="t-label">{T.lowest}</p>
@@ -313,25 +471,50 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
   const [note, setNote] = useState(map.note ?? "");
   const [status, setStatusValue] = useState(map.status);
   const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const scores = PILLARS.map((p) => [PILLAR_PT[p], map[`score_${p}` as keyof AdminMap] as number | null] as const);
+  const complete = scores.every(([, v]) => typeof v === "number");
+  // Her own wheel, the same one she saw (§12). Only a finished Map has all six.
+  const wheelScores = complete
+    ? (Object.fromEntries(PILLARS.map((p) => [p, map[`score_${p}` as keyof AdminMap] as number])) as Scores)
+    : null;
+
+  // It behaves like a section of the page, not a dialog: the honest thing is to move focus
+  // to its heading and say so (review 5, finding 21).
+  useEffect(() => {
+    headingRef.current?.focus({ preventScroll: true });
+  }, []);
 
   return (
-    <div className="card mt-4 flex flex-col gap-4 px-4 py-4" role="dialog" aria-label={T.detail}>
+    <section className="card mt-4 flex flex-col gap-4 px-4 py-4" aria-label={T.detail}>
       <div className="flex items-baseline justify-between gap-4">
-        <h2 className="t-pillar !text-xl">{map.contact?.first_name || T.detail}</h2>
+        <h2 ref={headingRef} tabIndex={-1} className="t-pillar !text-xl outline-none">
+          {map.contact?.first_name || T.detail}
+        </h2>
         <button type="button" className="link min-h-11" onClick={onClose}>
           {T.close}
         </button>
       </div>
 
-      <dl className="grid grid-cols-2 gap-2">
-        {scores.map(([label, value]) => (
-          <div key={label} className="flex justify-between gap-2 border-b border-line py-1">
-            <dt>{label}</dt>
-            <dd className="t-num text-ink">{value ?? "—"}</dd>
-          </div>
-        ))}
-      </dl>
+      {map.sharedDays !== null && <p className="t-helper">{T.sinceShared(map.sharedDays)}</p>}
+
+      {wheelScores ? (
+        <div className="flex flex-col gap-4">
+          <Wheel scores={wheelScores} animate={false} selected={null} onSelect={() => {}} />
+          <Bars scores={wheelScores} focus={focusPillars(wheelScores)} />
+        </div>
+      ) : (
+        <dl className="grid grid-cols-2 gap-2">
+          {scores.map(([label, value]) => (
+            <div key={label} className="flex justify-between gap-2 border-b border-line py-1">
+              <dt>{label}</dt>
+              <dd className="t-num text-ink">{value ?? "—"}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
 
       <div>
         <p className="t-label">{T.answers}</p>
@@ -360,6 +543,10 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
             </p>
           )}
           {map.contact.instagram && <p>{map.contact.instagram}</p>}
+          {/* The two consents are separate on purpose (§13), so Rê can see both before she
+              writes to anybody (review 5, finding 8). */}
+          <p className="t-helper mt-2">{T.consentShare}</p>
+          <p className="t-helper">{map.contact.consent_email ? T.consentEmailYes : T.consentEmailNo}</p>
           {map.contact.vision && <p className="mt-2">“{map.contact.vision}”</p>}
           {map.contact.question_for_re && <p className="mt-2">“{map.contact.question_for_re}”</p>}
         </div>
@@ -389,20 +576,57 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
         onChange={(e) => setNote(e.target.value)}
         className="w-full rounded-[12px] border border-line bg-surface px-4 py-3 text-base"
       />
+      {failed && (
+        <p role="alert" className="card border-l-4 !border-l-attention px-4 py-3">
+          {failed}
+        </p>
+      )}
       <button
         type="button"
         className="btn btn-primary"
         disabled={saving}
         onClick={async () => {
           setSaving(true);
-          await setStatus(map.id, status, note.trim() || null);
+          setFailed(null);
+          const ok = await setStatus(map.id, status, note.trim() || null);
           setSaving(false);
-          onSaved();
+          if (ok) onSaved();
+          else setFailed(T.saveFailed);
         }}
       >
-        {saving ? T.saved : T.save}
+        {saving ? T.saving : T.save}
       </button>
-    </div>
+
+      <div className="no-print flex flex-wrap items-center gap-3">
+        <button type="button" className="link min-h-11" onClick={() => window.print()}>
+          {T.print}
+        </button>
+        {/* Spec §13, the right to be forgotten. Two presses, never one. */}
+        {confirming ? (
+          <>
+            <span className="t-helper">{T.deleteConfirm}</span>
+            <button
+              type="button"
+              className="link min-h-11 text-attention"
+              onClick={async () => {
+                const ok = await deleteMap(map.id);
+                if (ok) onSaved();
+                else setFailed(T.deleteFailed);
+              }}
+            >
+              {T.deleteYes}
+            </button>
+            <button type="button" className="link min-h-11" onClick={() => setConfirming(false)}>
+              {T.deleteNo}
+            </button>
+          </>
+        ) : (
+          <button type="button" className="link min-h-11" onClick={() => setConfirming(true)}>
+            {T.delete}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -412,6 +636,13 @@ function downloadCsv(maps: AdminMap[]) {
   const a = document.createElement("a");
   a.href = url;
   a.download = `equilibrar-mapas-${new Date().toISOString().slice(0, 10)}.csv`;
+  // Some browsers cancel a download whose anchor was never in the page, or whose object URL
+  // was revoked in the same tick (review 5, finding 19).
+  a.style.display = "none";
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 0);
 }

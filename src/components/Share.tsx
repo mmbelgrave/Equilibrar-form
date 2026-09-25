@@ -1,8 +1,9 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { useState, type RefObject } from "react";
+import { useLocale, useTranslations } from "next-intl";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { RE_WHATSAPP } from "@/lib/links";
+import { PATHS, type Locale } from "@/lib/i18n";
 import { enabled as dbEnabled, shareMap, type ContactDetails } from "@/lib/db";
 import type { Personal } from "@/lib/conclusion";
 import type { MapResult, Path } from "@/lib/scoring";
@@ -30,6 +31,8 @@ function Field({
   onChange,
   required,
   autoComplete,
+  invalid,
+  errorId,
 }: {
   id: string;
   label: string;
@@ -39,6 +42,8 @@ function Field({
   onChange: (v: string) => void;
   required?: boolean;
   autoComplete?: string;
+  invalid?: boolean;
+  errorId?: string;
 }) {
   return (
     <p className="flex flex-col gap-1">
@@ -56,7 +61,8 @@ function Field({
         value={value}
         required={required}
         autoComplete={autoComplete}
-        aria-describedby={hint ? `${id}-hint` : undefined}
+        aria-invalid={invalid || undefined}
+        aria-describedby={[hint ? `${id}-hint` : null, invalid ? errorId : null].filter(Boolean).join(" ") || undefined}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-[12px] border border-line bg-surface px-4 py-3 text-base"
       />
@@ -81,34 +87,65 @@ export function ShareForm({
   onShared: () => void;
 }) {
   const t = useTranslations();
+  const locale = useLocale() as Locale;
   const [contact, setContact] = useState<ContactDetails>(() => emptyContact(personal.name));
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; field: string | null } | null>(null);
   const [sending, setSending] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const set = <K extends keyof ContactDetails>(key: K, value: ContactDetails[K]) =>
     setContact((c) => ({ ...c, [key]: value }));
 
+  // The form appears further down the page when she chooses a card. Moving focus to its
+  // heading is how a screen-reader or keyboard user learns that anything happened at all
+  // (review 5, finding 21).
+  useEffect(() => {
+    headingRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  /** One problem at a time, and the cursor goes to the field it is about. */
+  function fail(field: string | null, message: string) {
+    setError({ message, field });
+    if (field) formRef.current?.querySelector<HTMLInputElement>(`#${field}`)?.focus();
+    return false;
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!contact.email.trim()) return setError(t("contact.needEmail"));
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim())) return setError(t("contact.needEmailValid"));
-    if (needsWhatsapp(chosenPath) && !contact.whatsapp.trim()) return setError(t("contact.needWhatsapp"));
-    if (!contact.consentShare) return setError(t("contact.needConsent"));
-    if (!dbEnabled || !mapId) return setError(t("contact.notReady"));
+    if (!contact.email.trim()) return fail("c-email", t("contact.needEmail"));
+    if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(contact.email.trim())) return fail("c-email", t("contact.needEmailValid"));
+    if (needsWhatsapp(chosenPath) && !contact.whatsapp.trim()) return fail("c-whats", t("contact.needWhatsapp"));
+    if (!contact.consentShare) return fail("c-consent", t("contact.needConsent"));
+    if (!dbEnabled || !mapId) return fail(null, t("contact.notReady"));
 
     setError(null);
     setSending(true);
     const ok = await shareMap(mapId, chosenPath, { ...contact, email: contact.email.trim() }, personal);
     setSending(false);
     if (ok) onShared();
-    else setError(t("contact.failed"));
+    else fail(null, t("contact.failed"));
   }
 
+  const wrong = (field: string) => error?.field === field;
+
   return (
-    <form className="card flex flex-col gap-4 px-4 py-4" onSubmit={submit} noValidate>
-      <h2 className="t-pillar !text-xl">{t("contact.title")}</h2>
+    <form ref={formRef} className="card flex flex-col gap-4 px-4 py-4" onSubmit={submit} noValidate>
+      <h2 ref={headingRef} tabIndex={-1} className="t-pillar !text-xl outline-none">
+        {t("contact.title")}
+      </h2>
       <p>{t("contact.lead")}</p>
       <Field id="c-name" label={t("contact.name")} value={contact.firstName} onChange={(v) => set("firstName", v)} autoComplete="given-name" />
-      <Field id="c-email" label={t("contact.email")} type="email" value={contact.email} onChange={(v) => set("email", v)} required autoComplete="email" />
+      <Field
+        id="c-email"
+        label={t("contact.email")}
+        type="email"
+        value={contact.email}
+        onChange={(v) => set("email", v)}
+        required
+        autoComplete="email"
+        invalid={wrong("c-email")}
+        errorId="c-error"
+      />
       <Field
         id="c-whats"
         label={t("contact.whatsapp")}
@@ -118,11 +155,20 @@ export function ShareForm({
         onChange={(v) => set("whatsapp", v)}
         required={needsWhatsapp(chosenPath)}
         autoComplete="tel"
+        invalid={wrong("c-whats")}
+        errorId="c-error"
       />
       <Field id="c-insta" label={t("contact.instagram")} value={contact.instagram} onChange={(v) => set("instagram", v)} />
 
       <label className="check">
-        <input type="checkbox" checked={contact.consentShare} onChange={(e) => set("consentShare", e.target.checked)} />
+        <input
+          id="c-consent"
+          type="checkbox"
+          checked={contact.consentShare}
+          aria-invalid={wrong("c-consent") || undefined}
+          aria-describedby={wrong("c-consent") ? "c-error" : undefined}
+          onChange={(e) => set("consentShare", e.target.checked)}
+        />
         <span>{t("contact.consentShare")}</span>
       </label>
       <label className="check">
@@ -130,9 +176,17 @@ export function ShareForm({
         <span>{t("contact.consentEmail")}</span>
       </label>
 
+      {/* Spec §13: what this means, and the way out, on the form itself. */}
+      <p className="t-helper">
+        {t("contact.leaving")}{" "}
+        <a href={PATHS[locale].privacy} className="link" target="_blank" rel="noopener noreferrer">
+          {t("contact.privacyLink")}
+        </a>
+      </p>
+
       {error && (
-        <p role="alert" className="card border-l-4 !border-l-attention px-4 py-3">
-          {error}
+        <p id="c-error" role="alert" className="card border-l-4 !border-l-attention px-4 py-3">
+          {error.message}
         </p>
       )}
 

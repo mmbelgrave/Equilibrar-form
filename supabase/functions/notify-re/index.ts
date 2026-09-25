@@ -5,9 +5,17 @@
 // It runs inside Supabase (EU region), not in the browser, which is why it may hold the
 // secret keys. Nothing here ever includes the check-in, and never the 24 answers.
 //
+// It trusts two things and nothing else: the shared secret in the request header, and what
+// it then reads from the database itself. The body of the request is only used for the id.
+// Before that, the public key printed inside the website was enough to make Rê's own
+// notification address send her invented leads (review 5, finding 3).
+//
 // Deploy:  supabase functions deploy notify-re
-// Secrets: supabase secrets set RESEND_API_KEY=... RE_EMAIL=... FROM_EMAIL=... ADMIN_URL=...
-// Then:    Database → Webhooks → table `contacts`, event INSERT, type Supabase Edge Function.
+// Secrets: supabase secrets set RESEND_API_KEY=... RE_EMAIL=... FROM_EMAIL=... ADMIN_URL=... NOTIFY_SECRET=...
+// Then:    Database → Webhooks → table `contacts`, event INSERT, type Supabase Edge
+//          Function, and add the header `x-webhook-secret` with the same NOTIFY_SECRET.
+
+type Payload = { type?: string; table?: string; record?: { id?: string; map_id?: string } };
 
 type ContactRow = {
   map_id: string;
@@ -15,9 +23,15 @@ type ContactRow = {
   email: string;
   whatsapp: string | null;
   question_for_re: string | null;
+  consent_share: boolean;
+  maps: {
+    focus_pillar: string | null;
+    second_pillar: string | null;
+    chosen_path: string | null;
+    recommended_path: string | null;
+    locale: string | null;
+  } | null;
 };
-
-type Payload = { type: string; table: string; record: ContactRow };
 
 const PILLAR_PT: Record<string, string> = {
   space: "Espaço",
@@ -33,11 +47,26 @@ const PATH_PT: Record<string, string> = {
   mentorship: "Mentoria",
 };
 
+/** Nothing from the outside goes into a header or a subject line with its control characters. */
+const oneLine = (value: string, max: number) =>
+  value.replace(/[\r\n\t\u0000-\u001f\u007f]/g, " ").trim().slice(0, max);
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 Deno.serve(async (request: Request) => {
-  const payload = (await request.json()) as Payload;
+  // 1. Is this the webhook, or somebody with the public key?
+  const expected = Deno.env.get("NOTIFY_SECRET");
+  if (!expected || request.headers.get("x-webhook-secret") !== expected) {
+    return new Response("no", { status: 401 });
+  }
+
+  const payload = (await request.json().catch(() => ({}))) as Payload;
   if (payload.type !== "INSERT" || payload.table !== "contacts") {
     return new Response("ignored", { status: 200 });
   }
+
+  const contactId = payload.record?.id ?? "";
+  if (!UUID.test(contactId)) return new Response("bad id", { status: 400 });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -46,26 +75,41 @@ Deno.serve(async (request: Request) => {
   const from = Deno.env.get("FROM_EMAIL") ?? "Equilibrar <onboarding@resend.dev>";
   const adminUrl = Deno.env.get("ADMIN_URL") ?? "";
 
-  // The Map itself, read with the service key so the row-level rules do not apply here.
-  const mapResponse = await fetch(
-    `${supabaseUrl}/rest/v1/maps?id=eq.${payload.record.map_id}&select=focus_pillar,second_pillar,chosen_path,recommended_path,locale`,
-    { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+  // 2. Everything in the email comes from the row itself, read with the service key so the
+  //    row-level rules do not apply here. The id is the only thing taken from the request.
+  const query = new URL(`${supabaseUrl}/rest/v1/contacts`);
+  query.searchParams.set("id", `eq.${contactId}`);
+  query.searchParams.set(
+    "select",
+    "map_id,first_name,email,whatsapp,question_for_re,consent_share," +
+      "maps(focus_pillar,second_pillar,chosen_path,recommended_path,locale)",
   );
-  const [map] = (await mapResponse.json()) as Array<Record<string, string | null>>;
+  const response = await fetch(query, {
+    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+  });
+  const [contact] = (await response.json().catch(() => [])) as ContactRow[];
+  if (!contact) return new Response("no such contact", { status: 404 });
 
-  const name = payload.record.first_name?.trim() || "Uma mulher";
-  const focus = [map?.focus_pillar, map?.second_pillar].filter(Boolean).map((p) => PILLAR_PT[p!] ?? p).join(" e ");
+  const map = contact.maps;
+  const name = oneLine(contact.first_name ?? "", 60) || "Uma mulher";
+  const focus = [map?.focus_pillar, map?.second_pillar]
+    .filter((p): p is string => !!p)
+    .map((p) => PILLAR_PT[p] ?? p)
+    .join(" e ");
   const chosen = map?.chosen_path ? (PATH_PT[map.chosen_path] ?? map.chosen_path) : "nenhum caminho";
+  // Her question travels only with the consent she ticked. The app already leaves it out
+  // without it; this is the function having its own opinion about it.
+  const question = contact.consent_share ? contact.question_for_re : null;
 
   const lines = [
     `${name} compartilhou o Mapa dela com você.`,
     ``,
     `Caminho escolhido: ${chosen}`,
     `Áreas com menos apoio: ${focus || "—"}`,
-    `E-mail: ${payload.record.email}`,
-    payload.record.whatsapp ? `WhatsApp: ${payload.record.whatsapp}` : ``,
-    payload.record.question_for_re ? `` : ``,
-    payload.record.question_for_re ? `A pergunta dela: “${payload.record.question_for_re}”` : ``,
+    `E-mail: ${contact.email}`,
+    contact.whatsapp ? `WhatsApp: ${contact.whatsapp}` : ``,
+    question ? `` : ``,
+    question ? `A pergunta dela: “${question}”` : ``,
     ``,
     adminUrl ? `Ver o Mapa: ${adminUrl}` : ``,
     ``,
@@ -78,10 +122,15 @@ Deno.serve(async (request: Request) => {
     body: JSON.stringify({
       from,
       to: [to],
-      subject: `Novo Mapa compartilhado — ${name} · ${chosen}`,
+      subject: oneLine(`Novo Mapa compartilhado — ${name} · ${chosen}`, 200),
       text: lines.join("\n"),
     }),
   });
 
-  return new Response(sent.ok ? "sent" : "email failed", { status: sent.ok ? 200 : 500 });
+  if (!sent.ok) {
+    // Without this, a refused send is a 500 with nothing to look at in the function's logs.
+    console.error("Resend refused:", sent.status, await sent.text().catch(() => ""));
+    return new Response("email failed", { status: 500 });
+  }
+  return new Response("sent", { status: 200 });
 });

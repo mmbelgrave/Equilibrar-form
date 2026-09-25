@@ -89,3 +89,13 @@ test("invalid JSON and nonsense fields fall back safely", () => {
 test("an empty personal record has nothing in it and no consent", () => {
   assert.deepEqual(emptyPersonal(), { name: "", vision: "", question: "", shareConsent: false });
 });
+
+test("the Map's id in Rê's database survives a refresh, and nothing else does", () => {
+  // Without this she would get a new row every time she came back, and Rê's figures would
+  // count one woman as many (review 5, finding 4).
+  const id = "3f1a7c58-0b2e-4d6a-9c11-5e8d2f4b7a90";
+  assert.equal(parseState(JSON.stringify({ v: 3, mapId: id })).state.mapId, id);
+  assert.equal(parseState(JSON.stringify({ v: 3, mapId: "../../etc/passwd" })).state.mapId, null);
+  assert.equal(parseState(JSON.stringify({ v: 3, mapId: 42 })).state.mapId, null);
+  assert.equal(emptyState().mapId, null);
+});

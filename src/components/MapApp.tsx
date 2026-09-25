@@ -94,9 +94,10 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   const [moodTicked, setMoodTicked] = useState(false);
   // Phase 2: the anonymous row in Rê's database, the card she picked, and whether she has
   // shared. None of this exists until a database is configured.
-  const [mapId, setMapId] = useState<string | null>(null);
   const [chosenPath, setChosenPath] = useState<Path | null>(null);
-  const mapIdRef = useRef<string | null>(null); // the same id, readable inside the effects
+  // The insert itself, not the id: two answers inside one round trip would otherwise both
+  // find no id and start two rows (review 5, finding 12).
+  const startingRef = useRef<Promise<string | null> | null>(null);
 
   // Read saved progress once, on the client.
   useEffect(() => {
@@ -171,6 +172,10 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   /** A new run. The last finished Map stays until the new one is finished. */
   function start() {
     setNotFound(false);
+    startingRef.current = null;
+    savedStep.current = "";
+    savedResult.current = null;
+    setChosenPath(null);
     update((s) => ({ ...emptyState(), result: s.result, animated: s.animated, screen: "about", pos: 0 }));
   }
 
@@ -310,25 +315,35 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
     if (fingerprint === savedStep.current) return;
     savedStep.current = fingerprint;
     (async () => {
-      const id = mapIdRef.current ?? (await startMap(locale));
-      if (!id) return;
-      if (mapIdRef.current !== id) {
-        mapIdRef.current = id;
-        setMapId(id);
+      let id = state.mapId;
+      if (!id) {
+        startingRef.current ??= startMap(locale);
+        id = await startingRef.current;
+        if (!id) {
+          startingRef.current = null; // let a later answer try again
+          savedStep.current = "";
+          return;
+        }
+        // Written to her device, so tomorrow's visit continues the same Map.
+        const keep = id;
+        update((s) => (s.mapId ? s : { ...s, mapId: keep }));
       }
       await saveProgress(id, locale, dbStep(state.screen), state.context, state.journey, scores);
     })();
-  }, [state, locale]);
+  }, [state, locale, update]);
 
   // Her finished result, still anonymous, so the completion figures are right even when she
   // never shares.
   const savedResult = useRef<string | null>(null);
   useEffect(() => {
-    if (!dbEnabled || !state?.result || !mapIdRef.current) return;
+    // `state?.mapId` is in the list on purpose: without it, a result that was finished
+    // before the row existed was never written at all (review 5, finding 11).
+    const id = state?.mapId;
+    if (!dbEnabled || !state?.result || !id) return;
     if (savedResult.current === state.result.submission_id) return;
     savedResult.current = state.result.submission_id;
-    void saveResult(mapIdRef.current, state.result);
-  }, [state?.result]);
+    void saveResult(id, state.result);
+  }, [state?.result, state?.mapId]);
 
   // The wheel animates once, on the first render of a result — never again.
   useEffect(() => {
@@ -468,9 +483,9 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   onChoose={setChosenPath}
                   onBack={back}
                   form={
-                    chosenPath ? (
+                    chosenPath && dbEnabled ? (
                       <ShareForm
-                        mapId={mapId}
+                        mapId={state.mapId}
                         chosenPath={chosenPath}
                         personal={state.personal}
                         onShared={() => {
@@ -484,7 +499,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                       />
                     ) : (
                       <p className="card px-4 py-3 text-sm" role="note">
-                        {FLAT_MESSAGES[locale][dbEnabled ? "paths.lead" : "paths.soon"]}
+                        {FLAT_MESSAGES[locale][dbEnabled ? "paths.pick" : "paths.soon"]}
                       </p>
                     )
                   }

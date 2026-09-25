@@ -165,3 +165,37 @@ test("no key is a prefix of another, which would turn a sentence into a group", 
     }
   }
 });
+
+// Review 5, finding 1: the privacy notice and the consent she ticks must describe what the
+// app actually does. While no database is configured that is "nothing is sent"; once Rê's
+// database is on it is "an anonymous Map is saved". Both sentences have to exist, and the
+// promise must never be made in the sentence that is shown when saving is on.
+test("no sentence shown with the database on claims that nothing is sent", () => {
+  for (const [locale, messages] of Object.entries({ pt, en })) {
+    for (const key of ["privacy.p1", "privacy.p1Saving", "privacy.p6Share", "share.localShared", "welcome.saving"]) {
+      assert.ok(messages[key], `${locale} is missing ${key}`);
+    }
+    const saving = [messages["privacy.p1"], messages["privacy.p1Saving"], messages["share.localShared"]].join(" ").toLowerCase();
+    for (const claim of ["nada do que você responde sai", "nada é enviado", "nothing you answer leaves", "nothing is sent"]) {
+      assert.ok(!saving.includes(claim), `${locale}: "${claim}" cannot be said once the database is on`);
+    }
+    // And the other way round: the sentence for a site with no database still says it plainly.
+    assert.ok(
+      /nada é enviado|nothing is sent/i.test(messages["share.local"]),
+      `${locale}: share.local should still say nothing is sent`,
+    );
+  }
+});
+
+test("the contact form carries the way out and a link to the privacy notice (§13)", () => {
+  for (const [locale, messages] of Object.entries({ pt, en })) {
+    assert.ok(messages["contact.leaving"], `${locale} contact.leaving`);
+    assert.ok(messages["contact.privacyLink"], `${locale} contact.privacyLink`);
+  }
+});
+
+test("nothing promises the PDF or the email sequence before they exist", () => {
+  for (const [locale, messages] of Object.entries({ pt, en })) {
+    assert.ok(!/pdf/i.test(messages["contact.consentEmail"]), `${locale}: consentEmail still promises a PDF`);
+  }
+});

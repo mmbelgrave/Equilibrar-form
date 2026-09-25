@@ -58,6 +58,13 @@ export type SavedState = {
   result: MapResult | null;
   /** The wheel animates once, on the first render of a result. */
   animated: boolean;
+  /**
+   * The id of her anonymous row in Rê's database, when there is one. Kept here so a refresh
+   * or a return the next day carries on with the same Map instead of starting another one
+   * (review 5, finding 4). It is a random uuid and identifies nothing about her: the row it
+   * points at holds coded answers and scores, and no rule lets anyone read it back.
+   */
+  mapId: string | null;
 };
 
 export const STATE_KEY = "eq.v3";
@@ -75,6 +82,7 @@ export function emptyState(): SavedState {
     personal: emptyPersonal(),
     result: null,
     animated: false,
+    mapId: null,
   };
 }
 
@@ -150,6 +158,7 @@ export function parseState(raw: string | null): { state: SavedState; resultLost:
       personal: parsePersonal(s.personal),
       result,
       animated: s.animated === true,
+      mapId: typeof s.mapId === "string" && /^[0-9a-f-]{36}$/i.test(s.mapId) ? s.mapId : null,
     },
     resultLost,
   };
