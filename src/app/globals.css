@@ -179,11 +179,29 @@ body {
   .bar-fill { background: CanvasText !important; forced-color-adjust: none; }
   .chip-dot { forced-color-adjust: none; background: CanvasText; }
 }
+/* Her answers are only on the page while "Print my full Map" is printing. */
+.print-only { display: none; }
+
 @media print {
+  @page { size: A4; margin: 14mm 12mm; }
   .no-print { display: none !important; }
-  body { background: white; }
-  .card-result { box-shadow: none; border: 1px solid var(--color-line); }
+  body { background: white; font-size: 11pt; }
+  .card-result { box-shadow: none; border: 0; padding: 0; }
+  /* The logo band keeps its rose, which is the brand's own surface. */
+  .band { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding-bottom: 4mm; }
+  main { padding-bottom: 0 !important; }
+  details { display: none; } /* "see the numbers" — the table is in the full print instead */
+  .avoid-break { break-inside: avoid; }
+  h1, h2, h3 { break-after: avoid; }
+  .card, .card-result { break-inside: auto; }
+  .print-rows > div { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 2px 0; border-bottom: 1px solid var(--color-line); }
+  .print-rows dt { color: var(--color-ink); }
+  .print-rows dd { margin: 0; font-weight: 700; text-align: right; }
+  .print-only h3 { margin-top: 6mm; }
 }
+
+/* Only the full print carries her answers. */
+html.printing-full .print-only { display: block; }
 
 /* Server-rendered welcome is swapped for a loading line when saved progress exists,
    so a refresh mid-questionnaire never flashes the start screen. */

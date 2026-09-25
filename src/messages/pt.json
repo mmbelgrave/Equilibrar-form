@@ -295,7 +295,7 @@
   "path.mentorship.covers": "Mês 1 · Ocupar (Espaço, Rotina) → Mês 2 · Recuperar (Sono, Calma) → Mês 3 · Construir (Alimentação, Força)",
   "path.mentorship.continues": "Comunidade depois",
   "path.mentorship.forYou": "você carrega isso há muito tempo e quer a caminhada inteira, de forma pessoal",
-  "privacy.p2": "Enquanto você responde, as suas respostas ficam guardadas só neste navegador, para você não perder nada se a internet cair. Quando o seu Mapa fica pronto, apagamos as 24 respostas. Ficam as seis pontuações e as suas respostas sobre a sua vida, em forma de código. O seu nome e o que você escreveu com as suas palavras ficam só neste aparelho, e saem quando você apaga o seu Mapa.",
+  "privacy.p2": "Enquanto você responde, as suas respostas ficam guardadas só neste navegador, para você não perder nada se a internet cair. Elas continuam aí depois do seu Mapa ficar pronto, para você poder imprimir o seu Mapa completo — e saem quando você apaga o seu Mapa. O seu nome e o que você escreveu com as suas palavras também ficam só neste aparelho.",
   "topicIn.gut": "digestão e intestino",
   "topicIn.cycle": "ciclo, hormônios e menopausa",
   "topicIn.energy": "energia e cansaço",
@@ -324,5 +324,16 @@
   "obstacleIn.results": "você não viu resultado",
   "obstacleIn.why": "você nunca entendeu por que o seu corpo reage do jeito que reage",
   "obstacleIn.cost": "o custo pesou",
-  "result.focusAllStrong": "As suas duas áreas mais baixas são {a} e {b} — e as duas já estão fortes"
+  "result.focusAllStrong": "As suas duas áreas mais baixas são {a} e {b} — e as duas já estão fortes",
+  "print.result": "Imprimir o meu resultado",
+  "print.full": "Imprimir o meu Mapa completo",
+  "print.hint": "No celular, escolha “Salvar como PDF” na tela de impressão para guardar o seu Mapa.",
+  "print.answersTitle": "As suas respostas",
+  "print.aboutTitle": "Sobre você",
+  "print.journeyTitle": "A sua caminhada",
+  "print.checkinTitle": "A etapa de cuidado",
+  "print.checkinTicked": "Você marcou algo para olhar com um médico.",
+  "print.checkinNone": "Você não marcou nada.",
+  "print.notAnswered": "Sem resposta",
+  "print.page": "O Mapa Equilibrar"
 }

@@ -260,9 +260,10 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
         context: s.context,
         journey: s.journey,
       });
-      // The 24 answers are not kept once the result exists (spec §12, §13). Her name and
-      // her own words stay, because the conclusion is written with them — on this device only.
-      return { ...emptyState(), screen: "result", result, personal: s.personal, animated: false };
+      // Everything she typed or answered stays on this device only: her name and her own
+      // words write the conclusion, and the 24 answers let her print her full Map (v4 §12).
+      // None of it is ever sent; what leaves the device is the coded result object.
+      return { ...s, screen: "result", pos: 0, result, animated: false };
     });
   }
 
@@ -386,6 +387,9 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   locale={locale}
                   result={state.result}
                   personal={state.personal}
+                  answers={state.answers}
+                  context={state.context}
+                  journey={state.journey}
                   moodTicked={moodTicked}
                   animate={!state.animated}
                   onContinue={() => go("paths")}

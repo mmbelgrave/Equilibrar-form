@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Bars } from "@/components/Bars";
 import { Wheel } from "@/components/Wheel";
+import { PrintAnswers } from "@/components/PrintAnswers";
 import { conclusionBlocks, type Personal } from "@/lib/conclusion";
 import { joinFragments, quoteReady } from "@/lib/sentences";
 import { PATHS, formatDate, type Locale } from "@/lib/i18n";
@@ -28,6 +29,7 @@ import {
   scoresOf,
   triedNothing,
   type Answer,
+  type Answers,
   type Context,
   type Journey,
   type MapResult,
@@ -820,6 +822,9 @@ export function Result({
   locale,
   result,
   personal,
+  answers,
+  context,
+  journey,
   moodTicked,
   animate,
   onContinue,
@@ -829,6 +834,9 @@ export function Result({
   locale: Locale;
   result: MapResult;
   personal: Personal;
+  answers: Answers;
+  context: Context;
+  journey: Journey;
   moodTicked: boolean;
   animate: boolean;
   onContinue: () => void;
@@ -991,16 +999,52 @@ export function Result({
         </div>
       </div>
 
+      <PrintAnswers answers={answers} context={context} journey={journey} flagged={result.flagged} />
+
       <div className="no-print flex flex-col items-center gap-3 md:items-start">
         <button type="button" className="btn btn-primary" onClick={onContinue}>
           {t("result.continue")}
         </button>
+        <PrintButtons />
+        <p className="t-helper">{t("print.hint")}</p>
         <button type="button" className="link min-h-11" onClick={onRetake}>
           {t("result.retake")}
         </button>
         <p className="t-helper">{t("result.localNote")}</p>
       </div>
     </section>
+  );
+}
+
+/** "Print my result" and "Print my full Map" (spec v4 §12). The full one adds her answers
+ * to the page for the duration of the print, through a class on <html>. */
+export function PrintButtons() {
+  const t = useTranslations();
+
+  useEffect(() => {
+    const clear = () => document.documentElement.classList.remove("printing-full");
+    window.addEventListener("afterprint", clear);
+    return () => {
+      window.removeEventListener("afterprint", clear);
+      clear();
+    };
+  }, []);
+
+  function print(full: boolean) {
+    document.documentElement.classList.toggle("printing-full", full);
+    // One frame, so the answers are on the page before the print dialog reads it.
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  }
+
+  return (
+    <div className="flex w-full flex-col items-center gap-3 md:flex-row md:items-start">
+      <button type="button" className="btn btn-secondary" onClick={() => print(false)}>
+        {t("print.result")}
+      </button>
+      <button type="button" className="btn btn-secondary" onClick={() => print(true)}>
+        {t("print.full")}
+      </button>
+    </div>
   );
 }
 

@@ -295,7 +295,7 @@
   "path.mentorship.covers": "Month 1 · Claim (Space, Routine) → Month 2 · Recover (Sleep, Calm) → Month 3 · Build (Food, Strength)",
   "path.mentorship.continues": "Community afterwards",
   "path.mentorship.forYou": "you've carried this a long time and want the whole journey, personally",
-  "privacy.p2": "While you answer, your answers are kept in this browser only, so nothing is lost if the connection drops. When your Map is ready, the 24 answers are deleted. The six scores and your answers about your life, as simple codes, are kept. Your name and anything you wrote in your own words stay on this device only, and go when you delete your Map.",
+  "privacy.p2": "While you answer, your answers are kept in this browser only, so nothing is lost if the connection drops. They stay there after your Map is ready, so you can print your full Map — and they go when you delete your Map. Your name and anything you wrote in your own words also stay on this device only.",
   "topicIn.gut": "digestion and gut",
   "topicIn.cycle": "your cycle, hormones and menopause",
   "topicIn.energy": "energy and tiredness",
@@ -324,5 +324,16 @@
   "obstacleIn.results": "you didn't see results",
   "obstacleIn.why": "you never understood why your body reacts the way it does",
   "obstacleIn.cost": "the cost became too much",
-  "result.focusAllStrong": "Your two lowest areas are {a} and {b} — and both are already strong"
+  "result.focusAllStrong": "Your two lowest areas are {a} and {b} — and both are already strong",
+  "print.result": "Print my result",
+  "print.full": "Print my full Map",
+  "print.hint": "On a phone, choose “Save as PDF” in the print screen to keep your Map.",
+  "print.answersTitle": "Your answers",
+  "print.aboutTitle": "About you",
+  "print.journeyTitle": "Your journey",
+  "print.checkinTitle": "The check-in",
+  "print.checkinTicked": "You ticked something to look at with a doctor.",
+  "print.checkinNone": "You ticked nothing.",
+  "print.notAnswered": "Not answered",
+  "print.page": "The Equilibrar Map"
 }
