@@ -82,10 +82,23 @@ test("the four spec fonts are self-hosted files in the repo", () => {
   assert.match(fonts, /next\/font\/local/);
 });
 
-// Phase 2 adds exactly two outside addresses, both from the spec: Rê's own Supabase project
-// (only when configured, and only for saving and sharing) and the wa.me link she taps to
-// message Rê. Anything else — fonts, analytics, trackers — is still forbidden.
-const ALLOWED_HOSTS = [/wa.me/, /supabase/];
+// Three outside addresses, each a deliberate decision: Rê's own Supabase project (only when
+// configured, and only for saving and sharing), the wa.me link she taps to message Rê, and
+// her booking page for the 30-minute conversation.
+//
+// All three are links or calls she chooses to make. None of them is a script loaded into the
+// Map: Calendly offers an embed widget and it is deliberately not used, because it would run
+// a third party's code on the page and the privacy notice says nothing third-party runs
+// here. Anything else — fonts, analytics, trackers — is still forbidden.
+const ALLOWED_HOSTS = [/wa.me/, /supabase/, /calendly.com/];
+
+test("the booking page is a link, never an embedded widget", () => {
+  const src = readFileSync(fileURLToPath(new URL("../src/", import.meta.url)) + "components/Share.tsx", "utf8");
+  assert.match(src, /href={BOOKING_URL}/, "the booking page is opened by a link");
+  for (const embed of [/assets.calendly.com/, /Calendly.initInlineWidget/, /<script/i, /<iframe/i]) {
+    assert.ok(!embed.test(src), `the confirmation screen must not embed anything: ${embed}`);
+  }
+});
 
 test("no Google Fonts or other third-party URLs in the source", () => {
   const walk = (d: string): string[] =>
