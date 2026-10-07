@@ -32,12 +32,24 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      # Where the site will be served from. On a domain of its own there is no sub-folder,
+      # and GitHub Pages reads public/CNAME out of the published site to know the domain.
+      # So: CNAME present → serve from the root; no CNAME → serve from /<repo>, as now.
+      - name: Work out the base path
+        run: |
+          if [ -f public/CNAME ]; then
+            echo "Custom domain: $(cat public/CNAME) — building for the root"
+            echo "BASE_PATH=" >> "$GITHUB_ENV"
+          else
+            echo "No custom domain — building for /${{ github.event.repository.name }}"
+            echo "BASE_PATH=/${{ github.event.repository.name }}" >> "$GITHUB_ENV"
+          fi
       - run: npm run build:static
         env:
           # STATIC_EXPORT makes the build write a plain static site to .next-export;
           # BASE_PATH is the sub-folder Pages serves it from.
           STATIC_EXPORT: "1"
-          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+          NEXT_PUBLIC_BASE_PATH: ${{ env.BASE_PATH }}
           # Rê's database. These three are repository *variables*, not secrets: they are
           # public by design and end up in the built JavaScript anyway. What protects the
           # data is the row-level security in supabase/schema.sql, not hiding this key.
