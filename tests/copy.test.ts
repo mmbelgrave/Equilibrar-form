@@ -268,3 +268,36 @@ test("nothing outside the one mandated line tells her to see a doctor in general
     }
   }
 });
+
+// The notice is no longer marked draft, so these stand in for the reading it used to get.
+// GDPR article 13 and LGPD article 9 both list what a person must be told; article 9 of the
+// GDPR and article 11 of the LGPD are why the consent has to be explicit, because the
+// answers are about her health.
+test("the privacy notice carries everything it has to carry", () => {
+  for (const [locale, m] of Object.entries({ pt, en })) {
+    const all = Object.entries(m)
+      .filter(([k]) => k.startsWith("privacy."))
+      .map(([, v]) => v)
+      .join(" ");
+
+    // Who is answerable, and how to reach them.
+    assert.match(all, /Renata Araújo/, `${locale}: the notice must name the controller`);
+    assert.match(all, /equilibrarbyre@hotmail\.com/, `${locale}: it must give a contact address`);
+    // The footing, and that it can be taken back.
+    assert.match(all, /consentimento|consent/i, `${locale}: the lawful basis`);
+    assert.match(all, /retirar|withdraw/i, `${locale}: the right to withdraw it`);
+    // That these are health answers, said out loud.
+    assert.match(all, /sa[úu]de|health/i, `${locale}: it must say these are health answers`);
+    // Everyone who touches the data, and that two of them are outside the EU.
+    for (const name of ["Supabase", "Resend", "Calendly"]) {
+      assert.ok(all.includes(name), `${locale}: ${name} must be named`);
+    }
+    assert.match(all, /Estados Unidos|United States/, `${locale}: the transfers must be disclosed`);
+    // How long, her rights, and where to complain.
+    assert.match(all, /30 dias|30 days/, `${locale}: retention`);
+    assert.match(all, /ANPD/, `${locale}: the Brazilian authority`);
+    assert.match(all, /CNPD/, `${locale}: the Portuguese authority`);
+    // And no stale draft warning now that it is published.
+    assert.ok(!("privacy.draft" in m), `${locale}: the draft warning should be gone`);
+  }
+});
