@@ -46,6 +46,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           # Rê's WhatsApp number in wa.me form, e.g. 351912345678. Optional.
           NEXT_PUBLIC_RE_WHATSAPP: ${{ vars.NEXT_PUBLIC_RE_WHATSAPP }}
+          # Where she books the 30-minute conversation about her Map (Calendly or similar).
+          # A plain link, opened in her own tab. Optional: empty hides the invitation.
+          NEXT_PUBLIC_BOOKING_URL: ${{ vars.NEXT_PUBLIC_BOOKING_URL }}
       # Switches Pages on for the repository the first time, so nobody has to click it.
       - uses: actions/configure-pages@v5
         with:

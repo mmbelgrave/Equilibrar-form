@@ -33,9 +33,15 @@ test("spec v3 wording: kept statements, the scale, pillar and step names", () =>
   assert.equal(en.q16, "I get through my day without feeling overwhelmed or on edge");
   assert.equal(en.q20, "I eat when I'm hungry and stop when I'm satisfied, not driven by cravings or emotions");
   assert.deepEqual([0, 1, 2, 3, 4].map((i) => pt[`scale.${i}`]), ["Nunca", "Raramente", "Às vezes", "Quase sempre", "Sempre"]);
+  // Pillar 4 was "Calma" until Renata's reviewed programme overview renamed it to Emoções
+  // — stress, feelings, anxiety, breathing. The code key is still `calm`.
   assert.deepEqual(
     PILLARS.map((p) => pt[`pillar.${p}`]),
-    ["Espaço", "Rotina", "Sono", "Calma", "Alimentação", "Força"],
+    ["Espaço", "Rotina", "Sono", "Emoções", "Alimentação", "Força"],
+  );
+  assert.deepEqual(
+    PILLARS.map((p) => en[`pillar.${p}`]),
+    ["Space", "Routine", "Sleep", "Emotions", "Food", "Strength"],
   );
   assert.deepEqual(["claim", "recover", "build"].map((s) => pt[`step.${s}`]), ["Ocupar", "Recuperar", "Construir"]);
 });
@@ -200,17 +206,16 @@ test("nothing promises the PDF or the email sequence before they exist", () => {
   }
 });
 
-test("her 24 answers have a consent of their own, separate from sharing (§13)", () => {
-  // They are health answers beside her name, so sharing must not be the price of handing
-  // them over (review 6, finding 1). The box that lets her share says nothing about them.
+test("the box that gates sharing names her answers and her health (§13)", () => {
+  // Review 6 was right that health answers must not travel behind words that do not mention
+  // them. The answer Renata chose is one box that says so out loud, worded the way her own
+  // registration form words it — "incluindo as informações sobre a minha saúde" — rather
+  // than a second box. So the thing to guard is that the box never stops saying it.
+  assert.match(pt["contact.consentShare"], /respostas/i, "pt: the box must name her answers");
+  assert.match(pt["contact.consentShare"], /sa[úu]de/i, "pt: the box must name her health information");
+  assert.match(en["contact.consentShare"], /answers/i, "en: the box must name her answers");
+  assert.match(en["contact.consentShare"], /health/i, "en: the box must name her health information");
   for (const [locale, messages] of Object.entries({ pt, en })) {
-    assert.ok(messages["contact.consentAnswers"], `${locale} needs its own answers consent`);
-    assert.match(messages["contact.consentAnswers"], /24/, `${locale} should say what it covers`);
-    assert.doesNotMatch(
-      messages["contact.consentShare"],
-      /24|respostas uma a uma|individual answers/i,
-      `${locale}: the box she must tick to share cannot also cover the answers`,
-    );
     assert.match(messages["privacy.p6Share"], /24/, `${locale} privacy.p6Share should name the 24 answers`);
   }
 });

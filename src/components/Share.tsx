@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { RE_WHATSAPP } from "@/lib/links";
+import { BOOKING_URL, RE_WHATSAPP } from "@/lib/links";
 import { PATHS, type Locale } from "@/lib/i18n";
 import { enabled as dbEnabled, shareMap, type ContactDetails } from "@/lib/db";
 import type { Personal } from "@/lib/conclusion";
@@ -16,7 +16,6 @@ const emptyContact = (firstName: string): ContactDetails => ({
   whatsapp: "",
   instagram: "",
   consentShare: false,
-  consentAnswers: false,
   consentEmail: false,
 });
 
@@ -131,7 +130,6 @@ export function ShareForm({
   }
 
   const wrong = (field: string) => error?.field === field;
-  const complete = answers.length === 24 && answers.every((a) => a !== null);
 
   return (
     <form ref={formRef} className="card flex flex-col gap-4 px-4 py-4" onSubmit={submit} noValidate>
@@ -176,24 +174,6 @@ export function ShareForm({
         />
         <span>{t("contact.consentShare")}</span>
       </label>
-      {/* Her 24 answers are health answers beside her name, so they get their own box and
-          it is optional — sharing must not be the price of handing them over (review 6,
-          finding 1). It only appears when there is a complete set to send, so the words
-          never promise something that will not happen. */}
-      {complete && (
-        <div>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={contact.consentAnswers}
-              onChange={(e) => set("consentAnswers", e.target.checked)}
-            />
-            <span>{t("contact.consentAnswers")}</span>
-          </label>
-          <p className="t-helper mt-1">{t("contact.consentAnswersHint")}</p>
-        </div>
-      )}
-
       <label className="check">
         <input type="checkbox" checked={contact.consentEmail} onChange={(e) => set("consentEmail", e.target.checked)} />
         <span>{t("contact.consentEmail")}</span>
@@ -253,6 +233,25 @@ export function Confirmation({
         <h2 className="t-label">{t("confirm.practiceTitle")}</h2>
         <p className="mt-2">{t(`practice.${result.focus_pillar}`)}</p>
       </div>
+
+      {/* The bridge into the Community: half an hour reading her Map with her. A plain link,
+          not an embedded booking widget — the embed would run a third party's code inside
+          the Map, and the privacy notice says nothing third-party runs here. */}
+      {BOOKING_URL && (
+        <div className="no-print card flex flex-col gap-3 px-4 py-4">
+          <h2 className="t-pillar !text-xl">{t("confirm.bookTitle")}</h2>
+          <p>{t("confirm.bookLead")}</p>
+          <a
+            href={BOOKING_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary !w-auto self-start"
+          >
+            {t("confirm.book")}
+          </a>
+          <p className="t-helper">{t("confirm.bookNote")}</p>
+        </div>
+      )}
 
       <div className="no-print flex flex-col items-center gap-3 md:items-start">
         {printButtons}

@@ -219,16 +219,18 @@ export async function mapByLink(id: string, token: string): Promise<MapResult | 
 /**
  * Her 24 answers, or nothing.
  *
- * They follow their own consent, not the one that lets her share at all. Sharing is what a
- * woman does to reach Rê; the individual answers are health answers next to her name, which
- * §13 treats as a heavier thing, so the box for them is separate and optional. A woman who
- * leaves it unticked still shares her Map and Rê still gets the six scores.
+ * One consent covers them, and it is written the way Renata's own registration form writes
+ * it: "autorizo a Rê a ver o meu Mapa e as minhas respostas, incluindo as informações sobre
+ * a minha saúde". Review 6 was right that these must not travel behind words that do not
+ * mention them — the answer is to say so in the box, not to add a second box. Sharing a Map
+ * and letting Rê read it are one purpose, and Rê needs the answers to do the conversation
+ * the whole funnel is built around.
  *
  * Complete sets only: a half-finished Map would give Rê a page of blanks to read, and the
  * database refuses anything but 24 anyway.
  */
-export function answersToSend(answers: Answers, consentAnswers: boolean): number[] | null {
-  if (!consentAnswers) return null;
+export function answersToSend(answers: Answers, consentShare: boolean): number[] | null {
+  if (!consentShare) return null;
   if (answers.length !== 24 || answers.some((a) => a === null)) return null;
   return answers as number[];
 }
@@ -238,10 +240,9 @@ export type ContactDetails = {
   email: string;
   whatsapp: string;
   instagram: string;
-  /** Required: without it there is no sharing at all. */
+  /** Required. Covers her Map, her 24 answers and the health information in them. */
   consentShare: boolean;
-  /** Optional, and separate: her 24 answers, one by one. */
-  consentAnswers: boolean;
+  /** Separate, because a mailing list is a different purpose. */
   consentEmail: boolean;
 };
 
@@ -280,7 +281,7 @@ export async function shareMap(
     // Her 24 answers, which Rê reads with her in the first conversation. They are the one
     // thing that stays on her device for the whole questionnaire and travels only here,
     // with the consent box that says so.
-    p_answers: answersToSend(answers, contact.consentAnswers),
+    p_answers: answersToSend(answers, contact.consentShare),
   });
   return !error;
 }
