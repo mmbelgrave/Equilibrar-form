@@ -151,3 +151,17 @@ test("the printed wheel keeps its colours and gains a texture over them", () => 
   }
 });
 
+
+test("a build-time variable that is set but empty never beats its default", () => {
+  // The deploy workflow passes every NEXT_PUBLIC_* variable whether or not the repository
+  // defines one, so an undefined variable arrives as "". `??` only falls back on null and
+  // undefined, so the empty string won and the booking invitation vanished from the live
+  // site while every check passed. Anything with a default has to use `||`.
+  const links = readFileSync(fileURLToPath(new URL("../src/lib/links.ts", import.meta.url)), "utf8");
+  for (const m of links.matchAll(/process\.env\.(\w+)\s*(\?\?|\|\|)\s*("[^"]*")/g)) {
+    const [, name, operator, fallback] = m;
+    if (fallback === '""') continue; // no default to lose
+    assert.equal(operator, "||", `${name} has a default, so it must use || — "" would beat it`);
+  }
+  assert.ok(/BOOKING_URL = process\.env\.\w+ \|\| "https:\/\/calendly\.com/.test(links), "the booking page is set");
+});
