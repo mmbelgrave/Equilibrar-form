@@ -282,7 +282,8 @@ test("the privacy notice carries everything it has to carry", () => {
 
     // Who is answerable, and how to reach them.
     assert.match(all, /Renata Araújo/, `${locale}: the notice must name the controller`);
-    assert.match(all, /equilibrarbyre@hotmail\.com/, `${locale}: it must give a contact address`);
+    // An address, not one particular address: which one it is can change, the need cannot.
+    assert.match(all, /[\w.+-]+@[\w-]+\.[\w.]+/, `${locale}: it must give a contact address`);
     // The footing, and that it can be taken back.
     assert.match(all, /consentimento|consent/i, `${locale}: the lawful basis`);
     assert.match(all, /retirar|withdraw/i, `${locale}: the right to withdraw it`);

@@ -704,19 +704,9 @@ export function JourneyScreen({
   const shown = skipsJ2 && pos >= 3 ? pos - 1 : pos;
   const progress = <Progress n={shown} total={total} label={t("question.progressLabel", { n: shown, total })} />;
   const common = { headingRef, label: t("journey.label"), progress, onNext, onBack };
-  const consent = (
-    <>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={personal.shareConsent}
-          onChange={(e) => onPersonal({ ...personal, shareConsent: e.target.checked })}
-        />
-        <span>{t("share.consent")}</span>
-      </label>
-      <p className="t-helper">{t(dbEnabled ? "share.localShared" : "share.local")}</p>
-    </>
-  );
+  // What she writes is covered by the one consent on the contact form, so there is no tick
+  // here any more — only a line saying where her words are while she writes them.
+  const consent = <p className="t-helper">{t(dbEnabled ? "share.localShared" : "share.local")}</p>;
 
   switch (pos) {
     case 1:

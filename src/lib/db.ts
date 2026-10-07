@@ -276,8 +276,10 @@ export async function shareMap(
     p_chosen_path: chosenPath,
     p_consent_share: contact.consentShare,
     p_consent_email: contact.consentEmail,
-    p_vision: personal.shareConsent ? personal.vision || null : null,
-    p_question: personal.shareConsent ? personal.question || null : null,
+    // Her own words travel under the same consent as her Map and her answers: one box,
+    // which names all of it. There is no separate tick under J3 and J5 any more.
+    p_vision: contact.consentShare ? personal.vision || null : null,
+    p_question: contact.consentShare ? personal.question || null : null,
     // Her 24 answers, which Rê reads with her in the first conversation. They are the one
     // thing that stays on her device for the whole questionnaire and travels only here,
     // with the consent box that says so.

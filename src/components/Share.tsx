@@ -216,8 +216,9 @@ export function Confirmation({
   printButtons: React.ReactNode;
 }) {
   const t = useTranslations();
-  const path = result.chosen_path;
-  const message = path === "community" ? "confirm.community" : path ? "confirm.personal" : "confirm.none";
+  // The three "I will be in touch in 48 hours" lines are gone: booking the conversation is
+  // the next step now, and that sentence promised something about Rê's week that she had
+  // never confirmed.
   const whatsappLink = RE_WHATSAPP
     ? `https://wa.me/${RE_WHATSAPP}?text=${encodeURIComponent(t("confirm.whatsappText", { name: personal.name || "" }).trim())}`
     : null;
@@ -227,16 +228,10 @@ export function Confirmation({
       <h1 ref={headingRef} tabIndex={-1} className="t-title outline-none">
         {t("confirm.title")}
       </h1>
-      <p className="text-lg">{t(message)}</p>
-
-      <div className="rounded-[12px] bg-rose-100 px-4 py-4">
-        <h2 className="t-label">{t("confirm.practiceTitle")}</h2>
-        <p className="mt-2">{t(`practice.${result.focus_pillar}`)}</p>
-      </div>
-
-      {/* The bridge into the Community: half an hour reading her Map with her. A plain link,
-          not an embedded booking widget — the embed would run a third party's code inside
-          the Map, and the privacy notice says nothing third-party runs here. */}
+      {/* The booking comes first: it is the one thing to do next, and the practice is what
+          she does in the meantime. A plain link, not an embedded booking widget — the embed
+          would run a third party's code inside the Map, and the privacy notice says nothing
+          third-party runs here. */}
       {BOOKING_URL && (
         <div className="no-print card flex flex-col gap-3 px-4 py-4">
           <h2 className="t-pillar !text-xl">{t("confirm.bookTitle")}</h2>
@@ -245,13 +240,18 @@ export function Confirmation({
             href={BOOKING_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-primary !w-auto self-start"
+            className="btn btn-primary !w-auto self-center"
           >
             {t("confirm.book")}
           </a>
           <p className="t-helper">{t("confirm.bookNote")}</p>
         </div>
       )}
+
+      <div className="rounded-[12px] bg-rose-100 px-4 py-4">
+        <h2 className="t-label">{t("confirm.practiceTitle")}</h2>
+        <p className="mt-2">{t(`practice.${result.focus_pillar}`)}</p>
+      </div>
 
       <div className="no-print flex flex-col items-center gap-3 md:items-start">
         {printButtons}
