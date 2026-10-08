@@ -12,7 +12,8 @@
 // notification address send her invented leads (review 5, finding 3).
 //
 // Deploy:  supabase functions deploy notify-re
-// Secrets: supabase secrets set RESEND_API_KEY=... RE_EMAIL=... FROM_EMAIL=... ADMIN_URL=... NOTIFY_SECRET=...
+// Secrets: RESEND_API_KEY, RE_EMAIL, FROM_EMAIL, ADMIN_URL, MAP_URL, NOTIFY_SECRET,
+//          and REPLY_TO (optional) — where a reply goes, which need not be the sending domain.
 // Then:    Database → Webhooks → table `contacts`, event INSERT, type Supabase Edge
 //          Function, and add the header `x-webhook-secret` with the same NOTIFY_SECRET.
 
@@ -77,6 +78,13 @@ Deno.serve(async (request: Request) => {
   const to = Deno.env.get("RE_EMAIL")!;
   const from = Deno.env.get("FROM_EMAIL") ?? "Equilibrar <onboarding@resend.dev>";
   const adminUrl = Deno.env.get("ADMIN_URL") ?? "";
+  // Where a reply lands. An e-mail has to be SENT from a domain Rê controls — nobody can
+  // send as @hotmail.com, which is exactly what SPF and DKIM exist to prevent — but a reply
+  // can go wherever she actually reads her mail. So the Map writes from her own domain and
+  // answers come back to her ordinary inbox. Unset means no reply-to header at all.
+  const replyTo = Deno.env.get("REPLY_TO") ?? "";
+  const withReply = (payload: Record<string, unknown>) =>
+    replyTo ? { ...payload, reply_to: [replyTo] } : payload;
 
   // 2. Everything in the email comes from the row itself, read with the service key so the
   //    row-level rules do not apply here. The id is the only thing taken from the request.
@@ -122,12 +130,14 @@ Deno.serve(async (request: Request) => {
   const sent = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: oneLine(`Novo Mapa compartilhado — ${name} · ${chosen}`, 200),
-      text: lines.join("\n"),
-    }),
+    body: JSON.stringify(
+      withReply({
+        from,
+        to: [to],
+        subject: oneLine(`Novo Mapa compartilhado — ${name} · ${chosen}`, 200),
+        text: lines.join("\n"),
+      }),
+    ),
   });
 
   if (!sent.ok) {
@@ -149,7 +159,7 @@ Deno.serve(async (request: Request) => {
     const toHer = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [contact.email], subject: hers.subject, text: hers.text }),
+      body: JSON.stringify(withReply({ from, to: [contact.email], subject: hers.subject, text: hers.text })),
     });
     if (!toHer.ok) {
       // Rê has been told either way, and that must not be undone by this one failing.
