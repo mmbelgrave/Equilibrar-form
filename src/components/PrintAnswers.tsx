@@ -7,25 +7,20 @@ import { CONTEXT_KEYS, PILLARS, pillarOfQuestion, type Answers, type Context, ty
  * Everything she answered, for "Print my full Map" (spec v4 §12). On her own device it is
  * on the page only while that button prints, and it is built from what is stored there: the
  * 24 answers, her context and journey answers. The check-in appears as the one yes/no the
- * app keeps — which boxes she ticked is never stored, so it cannot be printed either.
+ * her context and journey answers.
  *
- * Rê's page renders the same thing from what a woman sent when she shared, where the
- * check-in does not exist at all: `flagged` is null there and the section is left out
- * rather than guessed at.
+ * Rê's page renders the same thing from what a woman sent when she shared.
  */
 export function PrintAnswers({
   answers,
   context,
   journey,
-  flagged,
   always = false,
   title,
 }: {
   answers: Answers;
   context: Context;
   journey: Journey;
-  /** null when it was never recorded, which is the case everywhere except her own device. */
-  flagged: boolean | null;
   /** True on Rê's page, where this is part of the page rather than something print reveals. */
   always?: boolean;
   /** "As suas respostas" on her own Map; "As respostas dela" on Rê's page. */
@@ -73,12 +68,6 @@ export function PrintAnswers({
       <h3 className="t-pillar">{t("print.journeyTitle")}</h3>
       <Rows rows={journeyRows.filter(([, value]) => value)} />
 
-      {flagged !== null && (
-        <>
-          <h3 className="t-pillar">{t("print.checkinTitle")}</h3>
-          <p>{flagged ? t("print.checkinTicked") : t("print.checkinNone")}</p>
-        </>
-      )}
     </section>
   );
 }

@@ -22,8 +22,8 @@ import {
   type MapResult,
 } from "./scoring.ts";
 
-export type Screen = "welcome" | "about" | "flow" | "journey" | "checkin" | "result" | "paths" | "confirm";
-export const SCREENS: Screen[] = ["welcome", "about", "flow", "journey", "checkin", "result", "paths", "confirm"];
+export type Screen = "welcome" | "about" | "flow" | "journey" | "result" | "paths" | "confirm";
+export const SCREENS: Screen[] = ["welcome", "about", "flow", "journey", "result", "paths", "confirm"];
 
 /** "about": intro + C0–C8 = 0…9. "flow": 6 dividers + 24 statements = 0…29. "journey": divider + J1–J5 = 0…5. */
 export const ABOUT_LENGTH = 10;
@@ -34,7 +34,6 @@ export const SCREEN_LENGTH: Record<Screen, number> = {
   about: ABOUT_LENGTH,
   flow: FLOW_LENGTH,
   journey: JOURNEY_LENGTH,
-  checkin: 1,
   result: 1,
   paths: 1,
   confirm: 1,

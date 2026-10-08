@@ -42,7 +42,6 @@ function PrivacyBody({ locale }: { locale: Locale }) {
       <Section t={t} title="deviceTitle" body={["p1", "p2"]} />
       <Section t={t} title="savedTitle" body={dbEnabled ? ["p1Saving"] : ["p1Local"]} />
       {dbEnabled && <Section t={t} title="shareTitle" body={["p6Share"]} />}
-      <Section t={t} title="checkinTitle" body={["p3"]} />
       <Section
         t={t}
         title="helpersTitle"

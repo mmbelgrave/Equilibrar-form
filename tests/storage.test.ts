@@ -20,17 +20,19 @@ const result = buildResult(Array(24).fill(2) as Answer[], {
   id: "x1",
   locale: "en",
   now: new Date("2026-09-24T10:00:00Z"),
-  flagged: true,
   context: CONTEXT,
   journey: JOURNEY,
 });
 
 const PERSONAL = { name: "Ana", vision: "MY-90-DAY-WORDS", question: "MY-QUESTION", shareConsent: true };
 
-test("what is saved holds no trace of which check-in box was ticked", () => {
+test("the check-in is gone, and nothing it left behind is saved", () => {
+  // The screen asking about bleeding, weight loss and the rest was removed at Renata's
+  // request. Nothing about it should survive in what a woman's device keeps.
   const saved = JSON.stringify({ ...emptyState(), screen: "result", result });
-  assert.ok(!/mood/i.test(saved), saved);
-  assert.deepEqual(saved.match(/"flagged"/g), ['"flagged"']);
+  for (const word of ["mood", "flagged", "checkin", "bleeding", "bowel"]) {
+    assert.ok(!new RegExp(word, "i").test(saved), `"${word}" should be gone: ${saved}`);
+  }
 });
 
 test("her name and her own words are saved on the device but never in the result", () => {

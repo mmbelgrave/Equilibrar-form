@@ -37,7 +37,6 @@ const example = () =>
     id: "8f3c",
     locale: "pt",
     now: new Date("2026-09-24T14:02:11Z"),
-    flagged: false,
     context: { ...CONTEXT },
     journey: { ...JOURNEY },
   });
@@ -139,7 +138,7 @@ test("every pillar strong → the Community, whatever else she answered", () => 
 test("result object: spec v3 fields, two focus pillars, no free text", () => {
   const r = example();
   assert.deepEqual(Object.keys(r).sort(), [
-    "age_band", "caring_for", "chosen_path", "completed_at", "contact_id", "duration", "flagged", "focus_pillar",
+    "age_band", "caring_for", "chosen_path", "completed_at", "contact_id", "duration", "focus_pillar",
     "focus_topics", "in_treatment", "life_stage", "locale", "obstacles", "readiness", "recommended_path",
     "score_calm", "score_food", "score_routine", "score_sleep", "score_space", "score_strength", "second_pillar",
     "submission_id", "support_home", "tried", "work_flex",

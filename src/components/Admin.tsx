@@ -611,7 +611,6 @@ function Detail({ map, onClose, onSaved }: { map: Row; onClose: () => void; onSa
           answers={answers}
           context={asContext(map)}
           journey={asJourney(map)}
-          flagged={null}
           always
           title={T.answersTitle}
         />

@@ -738,61 +738,6 @@ export function JourneyScreen({
   }
 }
 
-/* --------------------------------------------------------------- 5 · Check-in */
-
-const CHECKS = ["bleeding", "weight", "bowel", "pain", "tired", "mood"] as const;
-
-export function CheckIn({
-  headingRef,
-  onContinue,
-  onBack,
-}: {
-  headingRef: HeadingRef;
-  onContinue: (flagged: boolean, mood: boolean) => void;
-  onBack: () => void;
-}) {
-  const t = useTranslations();
-  // Ticks live only on this screen. Only "anything ticked?" is saved (spec §6).
-  const [ticked, setTicked] = useState<Set<string>>(new Set());
-
-  function toggle(key: string) {
-    setTicked((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else if (key === "none") return new Set(["none"]);
-      else {
-        next.delete("none");
-        next.add(key);
-      }
-      return next;
-    });
-  }
-
-  const flagged = CHECKS.some((k) => ticked.has(k));
-  return (
-    <section className="flex flex-1 flex-col gap-5 pt-2">
-      <h1 ref={headingRef} tabIndex={-1} className="t-title outline-none">
-        {t("checkin.title")}
-      </h1>
-      <p>{t("checkin.intro")}</p>
-      <fieldset className="flex flex-col gap-2">
-        <legend className="t-helper mb-2">{t("checkin.optional")}</legend>
-        {[...CHECKS, "none" as const].map((k) => (
-          <label key={k} className="check">
-            <input type="checkbox" checked={ticked.has(k)} onChange={() => toggle(k)} />
-            <span>{t(`checkin.${k}`)}</span>
-          </label>
-        ))}
-      </fieldset>
-      <Nav onBack={onBack}>
-        <button type="button" className="btn btn-primary" onClick={() => onContinue(flagged, ticked.has("mood"))}>
-          {t("checkin.continue")}
-        </button>
-      </Nav>
-    </section>
-  );
-}
-
 /* ------------------------------------------- 6 · Your Map and the conclusion (§3) */
 
 function WorkCard({ pillar }: { pillar: Pillar }) {
@@ -820,7 +765,6 @@ export function Result({
   answers,
   context,
   journey,
-  moodTicked,
   animate,
   onContinue,
   onRetake,
@@ -833,7 +777,6 @@ export function Result({
   answers: Answers;
   context: Context;
   journey: Journey;
-  moodTicked: boolean;
   animate: boolean;
   onContinue: () => void;
   onRetake: () => void;
@@ -857,14 +800,6 @@ export function Result({
 
   return (
     <section className="flex flex-col gap-6 pt-2">
-      {result.flagged && (
-        // A calm panel above her result: no warning colour, no alarm icon, never blocking.
-        <div className="card border-l-4 !border-l-attention px-4 py-4" role="note">
-          <p>{t("result.flagged")}</p>
-          {moodTicked && <p className="mt-2">{t("result.flaggedMood")}</p>}
-        </div>
-      )}
-
       <div className="card-result flex flex-col gap-6 px-4 py-6 md:px-8">
         {blocks.map((block) => {
           switch (block.id) {
@@ -1001,7 +936,7 @@ export function Result({
         </div>
       </div>
 
-      {!fromLink && <PrintAnswers answers={answers} context={context} journey={journey} flagged={result.flagged} />}
+      {!fromLink && <PrintAnswers answers={answers} context={context} journey={journey} />}
 
       {/* Paper only: what this is and when it was made, at the foot of the last sheet. */}
       <p className="print-footer t-helper">

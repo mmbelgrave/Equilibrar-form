@@ -212,7 +212,6 @@ export async function mapByLink(id: string, token: string): Promise<MapResult | 
     ...row,
     submission_id: row.id,
     completed_at: row.finished_at,
-    flagged: false, // never stored, so a Map opened from a link cannot claim either way
   });
 }
 

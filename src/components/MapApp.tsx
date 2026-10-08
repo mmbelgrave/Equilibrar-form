@@ -3,7 +3,7 @@
 import { NextIntlClientProvider } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Header } from "@/components/Header";
-import { About, CheckIn, Divider, JourneyScreen, Paths, PrintButtons, Question, Result, Welcome } from "@/components/screens";
+import { About, Divider, JourneyScreen, Paths, PrintButtons, Question, Result, Welcome } from "@/components/screens";
 import { Confirmation, ShareForm } from "@/components/Share";
 import {
   enabled as dbEnabled,
@@ -73,7 +73,7 @@ function resumePoint(s: SavedState): Pick<SavedState, "screen" | "pos"> {
     if (s.journey.obstacles.length === 0 && !triedNothing(s.journey)) return { screen: "journey", pos: 2 };
     return { screen: "journey", pos: 4 };
   }
-  return { screen: "checkin", pos: 0 };
+  return { screen: "journey", pos: JOURNEY_LENGTH - 1 };
 }
 
 const inProgress = (s: SavedState) =>
@@ -101,8 +101,6 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   const [direction, setDirection] = useState<"next" | "back" | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [suggestOther, setSuggestOther] = useState(false);
-  // Whether the mood line was ticked lives in memory only, never in storage (spec §6).
-  const [moodTicked, setMoodTicked] = useState(false);
   // Phase 2: the anonymous row in Rê's database, the card she picked, and whether she has
   // shared. None of this exists until a database is configured.
   const [chosenPath, setChosenPath] = useState<Path | null>(null);
@@ -133,7 +131,6 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   useEffect(() => {
     const { state: s, resultLost } = loadState();
     const stale =
-      (s.screen === "checkin" && !isComplete(s.answers)) ||
       (s.screen === "flow" && !contextComplete(s.context)) ||
       (s.screen === "journey" && !isComplete(s.answers));
     if (stale) Object.assign(s, resumePoint(s));
@@ -241,7 +238,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
         // "Nothing yet" means nothing got in the way either: J2 is skipped rather than
         // forcing an untrue answer (review 3, finding 1).
         if (s.pos === 1 && triedNothing(s.journey)) return { ...s, journey: { ...s.journey, obstacles: [] }, pos: 3 };
-        return s.pos + 1 >= JOURNEY_LENGTH ? { ...s, screen: "checkin", pos: 0 } : { ...s, pos: s.pos + 1 };
+        return s.pos + 1 >= JOURNEY_LENGTH ? finished(s) : { ...s, pos: s.pos + 1 };
       }
       const q = posToQuestion(s.pos);
       if (q !== null && s.answers[q] === null) return s; // no skipping
@@ -260,8 +257,6 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
           if (s.pos === 0) return { ...s, screen: "flow", pos: FLOW_LENGTH - 1 };
           // J2 was skipped, so Back from J3 goes to J1.
           return { ...s, pos: s.pos === 3 && triedNothing(s.journey) ? 1 : s.pos - 1 };
-        case "checkin":
-          return { ...s, screen: "journey", pos: JOURNEY_LENGTH - 1 };
         case "paths":
         case "confirm":
           return { ...s, screen: "result", pos: 0 };
@@ -304,9 +299,9 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
     return () => window.removeEventListener("popstate", onPop);
   }, [back]);
 
-  function finish(flagged: boolean, mood: boolean) {
-    setMoodTicked(flagged && mood);
-    update((s) => {
+  /** Her finished Map, built from what is on this device. Pure, so `forward` can return it. */
+  function finished(s: SavedState): SavedState {
+    {
       if (!isComplete(s.answers) || !contextComplete(s.context) || !journeyComplete(s.journey)) {
         return { ...s, ...resumePoint(s) };
       }
@@ -314,7 +309,6 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
         id: crypto.randomUUID(),
         locale,
         now: new Date(),
-        flagged,
         context: s.context,
         journey: s.journey,
       });
@@ -325,7 +319,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
       // Her 30-day link is minted here, on her device, so the only copy that leaves is the
       // one she is sent (spec §5). The same one is kept if she re-takes and finishes again.
       return { ...s, screen: "result", pos: 0, result, animated: false, linkToken: s.linkToken ?? newLinkToken() };
-    });
+    }
   }
 
   // Saving as she goes (spec v4 §12), so Rê can see Maps that were started and not
@@ -450,7 +444,6 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   answers={[]}
                   context={emptyContext()}
                   journey={emptyJourney()}
-                  moodTicked={false}
                   animate={false}
                   onContinue={() => setFromLink(null)}
                   onRetake={() => {
@@ -518,7 +511,6 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   onBack={back}
                 />
               )}
-              {!fromLink && state.screen === "checkin" && <CheckIn headingRef={headingRef} onContinue={finish} onBack={back} />}
               {!fromLink && state.screen === "result" && state.result && (
                 <Result
                   headingRef={headingRef}
@@ -528,7 +520,6 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   answers={state.answers}
                   context={state.context}
                   journey={state.journey}
-                  moodTicked={moodTicked}
                   animate={!state.animated}
                   onContinue={() => go("paths")}
                   onRetake={start}

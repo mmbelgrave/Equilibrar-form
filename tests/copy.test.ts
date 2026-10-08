@@ -232,34 +232,25 @@ test("no paragraph promises the 24 answers stay on her device for good", () => {
   }
 });
 
-test("the check-in panel points at the signal, and still names what it needs", () => {
-  // Two things have to be true at once, and they pull against each other. Renata's position
-  // is that the programme reads what the body is signalling rather than deferring to a
-  // doctor for everything — so no generic "consult your doctor" anywhere. But three of the
-  // six check-in items (bleeding after menopause, losing weight without trying, blood in
-  // the stool) are the standard signs that send a woman for investigation, and her own
-  // programme overview says the boundary is "o que dá credibilidade aos outros onze
-  // minutos". So: the panel must still name who can look, and must not read as "go to a
-  // doctor instead of this".
+// Renata asked for the check-in screen to be removed: the six red-flag questions, and the
+// panel that named what they meant. Her position is that the programme reads what the body
+// is signalling rather than routing women to doctors. Removing the screen is the coherent
+// version of that — not asking is defensible in a way that asking and then saying nothing
+// would not have been. What must not come back is any trace of it.
+test("the check-in is gone, in both languages", () => {
   for (const [locale, m] of Object.entries({ pt, en })) {
-    const panel = m["result.flagged"];
-    assert.match(panel, /médico|doctor/i, `${locale}: the panel must still name who can look at it`);
-    assert.match(panel, /sinal|signal/i, `${locale}: it is framed as a signal from her body`);
-    assert.match(
-      panel,
-      /junto com ele|alongside it/i,
-      `${locale}: it must say this is alongside her Map, not instead of it`,
-    );
+    for (const key of Object.keys(m)) {
+      assert.ok(!key.startsWith("checkin."), `${locale}: ${key} should be gone`);
+      assert.ok(!key.startsWith("result.flagged"), `${locale}: ${key} should be gone`);
+      assert.ok(!key.startsWith("print.checkin"), `${locale}: ${key} should be gone`);
+    }
   }
-  // And the mental-health line signposts without calling her unwell.
-  assert.match(pt["result.flaggedMood"], /não é fraqueza/i);
-  assert.match(en["result.flaggedMood"], /not weakness/i);
 });
 
 test("nothing outside the one mandated line tells her to see a doctor in general", () => {
   // Renata's rule: "Nada de aviso genérico... No resto da aula, ensine." The disclaimer is
   // the single exception the spec itself mandates, said once, at the foot of the result.
-  const allowed = new Set(["disclaimer", "result.flagged", "result.flaggedMood", "checkin.intro"]);
+  const allowed = new Set(["disclaimer"]);
   const generic = [/consulte o seu m[ée]dico/i, /procure um m[ée]dico/i, /consult your doctor/i, /see your doctor/i];
   for (const [locale, m] of Object.entries({ pt, en })) {
     for (const [k, v] of Object.entries(m)) {

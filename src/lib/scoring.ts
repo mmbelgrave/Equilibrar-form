@@ -195,7 +195,6 @@ export type MapResult = {
   tried: Tried[];
   obstacles: Obstacle[];
   readiness: Readiness | null;
-  flagged: boolean;
   recommended_path: Path;
   /** Phase 2: which card she chose, and the contact record. */
   chosen_path: Path | null;
@@ -204,7 +203,7 @@ export type MapResult = {
 
 export function buildResult(
   answers: Answer[],
-  opts: { id: string; locale: "pt" | "en"; now: Date; flagged: boolean; context: Context; journey: Journey },
+  opts: { id: string; locale: "pt" | "en"; now: Date; context: Context; journey: Journey },
 ): MapResult {
   const s = scorePillars(answers);
   const [focus, second] = focusPillars(s);
@@ -232,7 +231,6 @@ export function buildResult(
     tried: [...j.tried],
     obstacles: [...j.obstacles],
     readiness: j.readiness,
-    flagged: opts.flagged,
     recommended_path: recommendPath(j, c, s),
     chosen_path: null,
     contact_id: null,
@@ -269,7 +267,6 @@ export function parseResult(raw: unknown): MapResult | null {
   if (typeof r.submission_id !== "string" || !r.submission_id) return null;
   if (r.locale !== "pt" && r.locale !== "en") return null;
   if (typeof r.completed_at !== "string" || Number.isNaN(Date.parse(r.completed_at))) return null;
-  if (typeof r.flagged !== "boolean") return null;
   if (!oneOf(AGE_BANDS, r.age_band) || !oneOf(LIFE_STAGES, r.life_stage) || !oneOf(CARING, r.caring_for)) return null;
   if (!oneOf(TREATMENT, r.in_treatment) || !oneOf(DURATIONS, r.duration) || !oneOf(READINESS, r.readiness)) return null;
   if (!isLevel(r.support_home) || !(isLevel(r.work_flex) || r.work_flex === "na")) return null;
@@ -304,7 +301,6 @@ export function parseResult(raw: unknown): MapResult | null {
     tried: journey.tried,
     obstacles: journey.obstacles,
     readiness: r.readiness,
-    flagged: r.flagged,
     // Recomputed, like the focus pillars: a Map saved before a rule change still shows
     // the highlight today's rules would give.
     recommended_path: recommendPath(journey, {

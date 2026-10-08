@@ -18,12 +18,11 @@ const JOURNEY: Journey = { tried: ["diets", "gym"], obstacles: ["time"], readine
 /** Lowest Strength, second lowest Space (the spec's own example). */
 const LOW = [1, 1, 1, 1, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 3, 3, 3, 2, 1, 1, 1, 0] as Answer[];
 
-const make = (over: { answers?: Answer[]; context?: Partial<Context>; journey?: Partial<Journey>; flagged?: boolean } = {}) =>
+const make = (over: { answers?: Answer[]; context?: Partial<Context>; journey?: Partial<Journey> } = {}) =>
   buildResult(over.answers ?? LOW, {
     id: "x",
     locale: "en",
     now: new Date("2026-09-24T10:00:00Z"),
-    flagged: over.flagged ?? false,
     context: { ...CONTEXT, ...over.context },
     journey: { ...JOURNEY, ...over.journey },
   });
