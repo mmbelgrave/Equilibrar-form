@@ -30,7 +30,6 @@ type ContactRow = {
     id: string;
     focus_pillar: string | null;
     second_pillar: string | null;
-    chosen_path: string | null;
     recommended_path: string | null;
     locale: string | null;
     link_token: string | null;
@@ -93,7 +92,7 @@ Deno.serve(async (request: Request) => {
   query.searchParams.set(
     "select",
     "map_id,first_name,email,whatsapp,question_for_re,consent_share," +
-      "maps(id,focus_pillar,second_pillar,chosen_path,recommended_path,locale,link_token)",
+      "maps(id,focus_pillar,second_pillar,recommended_path,locale,link_token)",
   );
   const response = await fetch(query, {
     headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
@@ -107,7 +106,10 @@ Deno.serve(async (request: Request) => {
     .filter((p): p is string => !!p)
     .map((p) => PILLAR_PT[p] ?? p)
     .join(" e ");
-  const chosen = map?.chosen_path ? (PATH_PT[map.chosen_path] ?? map.chosen_path) : "nenhum caminho";
+  // No path is chosen in the app any more — Rê talks the options through in the 30 minutes — so
+  // every notification used to read "nenhum caminho". What is worth telling her is the one the
+  // Map worked out, which is still stored and still hers to agree or ignore.
+  const suggested = map?.recommended_path ? (PATH_PT[map.recommended_path] ?? map.recommended_path) : null;
   // Her question travels only with the consent she ticked. The app already leaves it out
   // without it; this is the function having its own opinion about it.
   const question = contact.consent_share ? contact.question_for_re : null;
@@ -115,7 +117,7 @@ Deno.serve(async (request: Request) => {
   const lines = [
     `${name} compartilhou o Mapa dela com você.`,
     ``,
-    `Caminho escolhido: ${chosen}`,
+    `O que o Mapa sugeriu: ${suggested ?? "—"}`,
     `Áreas com menos apoio: ${focus || "—"}`,
     `E-mail: ${contact.email}`,
     contact.whatsapp ? `WhatsApp: ${contact.whatsapp}` : ``,
@@ -134,7 +136,7 @@ Deno.serve(async (request: Request) => {
       withReply({
         from,
         to: [to],
-        subject: oneLine(`Novo Mapa compartilhado — ${name} · ${chosen}`, 200),
+        subject: oneLine(`Novo Mapa compartilhado — ${name}${focus ? ` · ${focus}` : ""}`, 200),
         text: lines.join("\n"),
       }),
     ),
