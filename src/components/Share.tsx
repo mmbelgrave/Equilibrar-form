@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { BOOKING_URL, RE_WHATSAPP } from "@/lib/links";
 import { PATHS, type Locale } from "@/lib/i18n";
-import { enabled as dbEnabled, shareMap, type ContactDetails } from "@/lib/db";
+import { enabled as dbEnabled, looksLikeEmail, shareMap, type ContactDetails } from "@/lib/db";
 import type { Personal } from "@/lib/conclusion";
 import type { Answers, MapResult } from "@/lib/scoring";
 
@@ -111,7 +111,7 @@ export function ShareForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!contact.email.trim()) return fail("c-email", t("contact.needEmail"));
-    if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(contact.email.trim())) return fail("c-email", t("contact.needEmailValid"));
+    if (!looksLikeEmail(contact.email)) return fail("c-email", t("contact.needEmailValid"));
     if (!contact.consentShare) return fail("c-consent", t("contact.needConsent"));
     if (!dbEnabled || !mapId) return fail(null, t("contact.notReady"));
 

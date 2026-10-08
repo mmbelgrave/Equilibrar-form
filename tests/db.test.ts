@@ -2,7 +2,7 @@
 // parts: the payload built while she answers, the status of a Map, the overview and the CSV.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { answersToSend, looksLikeProjectUrl, overview, pillarsAnswered, progressPayload, statusOf, toCsv, type AdminMap } from "../src/lib/db.ts";
+import { answersToSend, looksLikeEmail, looksLikeProjectUrl, overview, pillarsAnswered, progressPayload, statusOf, toCsv, type AdminMap } from "../src/lib/db.ts";
 import { emptyContext, emptyJourney, type Context, type Journey } from "../src/lib/scoring.ts";
 
 const CONTEXT: Context = {
@@ -202,6 +202,27 @@ test("a project URL that is not a URL counts as no database", () => {
   assert.equal(looksLikeProjectUrl("eyJhbGciOiJIUzI1NiJ9.abc.def"), false);
   assert.equal(looksLikeProjectUrl("abcdefghijkl.supabase.co"), false); // no protocol
   assert.equal(looksLikeProjectUrl(""), false);
+});
+
+test("an e-mail with the letter s in it is not refused", () => {
+  // The share form carried /^[^s@]+@[^s@]+.[^s@]+$/ — \s and \. had lost their backslashes,
+  // so the class read "not the letter s" rather than "not whitespace". Every address with an
+  // s was told "that e-mail does not look right", which is most of Rê's audience: josé,
+  // santos, sousa, sofia. Found by filling the live form with teste@example.com.
+  for (const ok of [
+    "teste@example.com",
+    "jose@outlook.com",
+    "maria.santos@gmail.com",
+    "sofia@uol.com.br",
+    "ana@gmail.com",
+    "rê+mapa@equilibrarbyre.com",
+    "  spaced@example.com  ", // trimmed before it is judged
+  ]) {
+    assert.equal(looksLikeEmail(ok), true, ok);
+  }
+  for (const bad of ["no-at-sign", "a b@c.com", "two@@at.com", "no@domain", "@nolocal.com", ""]) {
+    assert.equal(looksLikeEmail(bad), false, JSON.stringify(bad));
+  }
 });
 
 test("her 24 answers go to Rê only as a complete set, and only with the consent", () => {

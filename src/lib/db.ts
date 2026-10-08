@@ -216,6 +216,19 @@ export async function mapByLink(id: string, token: string): Promise<MapResult | 
 }
 
 /**
+ * Does this look like an e-mail address she can be reached at?
+ *
+ * It lived in the share form as /^[^s@]+@[^s@]+.[^s@]+$/ — the backslashes of \s and \. had
+ * been lost somewhere, which turned "not whitespace" into "not the letter s". Every address
+ * containing an s was refused with "that e-mail does not look right": josé@, maria.santos@,
+ * sofia@, about half the names Rê's audience actually has. It also accepted "a b@c.com".
+ *
+ * Deliberately loose beyond that. The only real test of an address is whether the e-mail
+ * arrives, and refusing a valid one costs Rê a woman who wanted to be reached.
+ */
+export const looksLikeEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+/**
  * Her 24 answers, or nothing.
  *
  * One consent covers them, and it is written the way Renata's own registration form writes
