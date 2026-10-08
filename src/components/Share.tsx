@@ -6,7 +6,7 @@ import { BOOKING_URL, RE_WHATSAPP } from "@/lib/links";
 import { PATHS, type Locale } from "@/lib/i18n";
 import { enabled as dbEnabled, shareMap, type ContactDetails } from "@/lib/db";
 import type { Personal } from "@/lib/conclusion";
-import type { Answers, MapResult, Path } from "@/lib/scoring";
+import type { Answers, MapResult } from "@/lib/scoring";
 
 type HeadingRef = RefObject<HTMLHeadingElement | null>;
 
@@ -18,9 +18,6 @@ const emptyContact = (firstName: string): ContactDetails => ({
   consentShare: false,
   consentEmail: false,
 });
-
-/** WhatsApp is how Rê works one to one, so the two personal paths need it. */
-const needsWhatsapp = (path: Path | null) => path === "consultoria" || path === "mentorship";
 
 function Field({
   id,
@@ -77,13 +74,11 @@ function Field({
  */
 export function ShareForm({
   mapId,
-  chosenPath,
   personal,
   answers,
   onShared,
 }: {
   mapId: string | null;
-  chosenPath: Path | null;
   personal: Personal;
   /** Her 24 answers, which travel with the first consent so Rê can read them with her. */
   answers: Answers;
@@ -117,13 +112,12 @@ export function ShareForm({
     e.preventDefault();
     if (!contact.email.trim()) return fail("c-email", t("contact.needEmail"));
     if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(contact.email.trim())) return fail("c-email", t("contact.needEmailValid"));
-    if (needsWhatsapp(chosenPath) && !contact.whatsapp.trim()) return fail("c-whats", t("contact.needWhatsapp"));
     if (!contact.consentShare) return fail("c-consent", t("contact.needConsent"));
     if (!dbEnabled || !mapId) return fail(null, t("contact.notReady"));
 
     setError(null);
     setSending(true);
-    const ok = await shareMap(mapId, chosenPath, { ...contact, email: contact.email.trim() }, personal, answers);
+    const ok = await shareMap(mapId, null, { ...contact, email: contact.email.trim() }, personal, answers);
     setSending(false);
     if (ok) onShared();
     else fail(null, t("contact.failed"));
@@ -156,7 +150,6 @@ export function ShareForm({
         type="tel"
         value={contact.whatsapp}
         onChange={(v) => set("whatsapp", v)}
-        required={needsWhatsapp(chosenPath)}
         autoComplete="tel"
         invalid={wrong("c-whats")}
         errorId="c-error"

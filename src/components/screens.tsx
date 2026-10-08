@@ -16,7 +16,6 @@ import {
   LIFE_STAGES,
   MAX_TOPICS,
   OBSTACLES,
-  PATHS_ALL,
   PILLARS,
   QUESTION_COUNT,
   READINESS,
@@ -34,7 +33,6 @@ import {
   type Context,
   type Journey,
   type MapResult,
-  type Path,
   type Pillar,
   type Step,
 } from "@/lib/scoring";
@@ -1008,75 +1006,38 @@ export function PrintButtons({ only }: { only?: "result" } = {}) {
 
 /* --------------------------------------------------------------- 7 · The paths */
 
-export function Paths({
+/**
+ * After her Map: send it to Rê and book the conversation. The three path cards used to live
+ * here, and Renata took them out — she would rather talk the options through in the
+ * 30 minutes than have a woman pick one off a page before they have spoken. What the Map
+ * recommended is still worked out and still reaches Rê; it is now the opening of a
+ * conversation rather than a question put to the woman.
+ */
+export function Share({
   headingRef,
-  result,
-  chosen,
-  onChoose,
   onBack,
   form,
 }: {
   headingRef: HeadingRef;
-  result: MapResult;
-  chosen: Path | null;
-  onChoose: (path: Path | null) => void;
   onBack: () => void;
-  /** The contact form and "Share my Map with Rê" (only once a path is chosen). */
+  /** The contact form and "Share my Map with Rê". */
   form: React.ReactNode;
 }) {
   const t = useTranslations();
-  const rows = ["promise", "length", "covers", "continues", "forYou"] as const;
   return (
     <section className="flex flex-1 flex-col gap-6 pt-2">
       <h1 ref={headingRef} tabIndex={-1} className="t-title outline-none">
-        {t("paths.title")}
+        {t("share.title")}
       </h1>
-      <p className="text-lg">{t("paths.lead")}</p>
-      <div className="flex flex-col gap-4">
-        {PATHS_ALL.map((path: Path) => {
-          const suggested = path === result.recommended_path;
-          return (
-            <article
-              key={path}
-              className={"card px-4 py-4" + (suggested ? " !border-2 !border-rose-600 bg-rose-100" : "")}
-              aria-labelledby={`path-${path}`}
-            >
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 id={`path-${path}`} className="t-pillar !text-xl">
-                  {t(`path.${path}.name`)}
-                </h2>
-                {suggested && <span className="chip text-ink">{t("paths.recommended")}</span>}
-              </div>
-              <dl className="mt-2 space-y-2">
-                {rows.map((row) => (
-                  <div key={row}>
-                    <dt className="t-label">{t(`paths.col.${row}`)}</dt>
-                    <dd>{t(`path.${path}.${row}`)}</dd>
-                  </div>
-                ))}
-                <div>
-                  <dt className="t-label">{t("paths.col.price")}</dt>
-                  <dd>{t("paths.priceTbc")}</dd>
-                </div>
-              </dl>
-              <button
-                type="button"
-                className={"no-print mt-4 " + (chosen === path ? "btn btn-primary" : "btn btn-secondary")}
-                aria-pressed={chosen === path}
-                onClick={() => onChoose(chosen === path ? null : path)}
-              >
-                {chosen === path ? t("paths.chosen") : t("paths.choose")}
-              </button>
-            </article>
-          );
-        })}
-      </div>
+      <p className="text-lg">{t("share.lead")}</p>
+
       {form}
 
       <div className="card px-4 py-4">
         <h2 className="t-pillar !text-xl">{t("paths.keepMapOnly")}</h2>
         <p className="mt-2">{t("paths.keepMapNote")}</p>
       </div>
+
       <div className="mt-auto pt-6">
         <button type="button" className="link inline-flex min-h-11 items-center" onClick={onBack}>
           <span aria-hidden="true">←&nbsp;</span>

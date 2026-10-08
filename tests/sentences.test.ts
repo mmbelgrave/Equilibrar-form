@@ -156,7 +156,7 @@ test("every sentence with placeholders has a value for each of them on screen", 
     "email.2.body": ["name", "pillar", "why"],
     "email.3.body": ["name", "practice"],
     "email.4.body": ["name", "story"],
-    "email.5.body": ["name", "paths", "link"],
+    "email.5.body": ["name", "booking", "link"],
   };
   for (const l of LOCALES) {
     for (const [k, v] of Object.entries(M[l])) {

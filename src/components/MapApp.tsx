@@ -3,7 +3,7 @@
 import { NextIntlClientProvider } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Header } from "@/components/Header";
-import { About, Divider, JourneyScreen, Paths, PrintButtons, Question, Result, Welcome } from "@/components/screens";
+import { About, Divider, JourneyScreen, PrintButtons, Question, Result, Share, Welcome } from "@/components/screens";
 import { Confirmation, ShareForm } from "@/components/Share";
 import {
   enabled as dbEnabled,
@@ -33,7 +33,6 @@ import {
   type Context,
   type Journey,
   type MapResult,
-  type Path,
   type Scores,
 } from "@/lib/scoring";
 import {
@@ -103,7 +102,6 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   const [suggestOther, setSuggestOther] = useState(false);
   // Phase 2: the anonymous row in Rê's database, the card she picked, and whether she has
   // shared. None of this exists until a database is configured.
-  const [chosenPath, setChosenPath] = useState<Path | null>(null);
   // The insert itself, not the id: two answers inside one round trip would otherwise both
   // find no id and start two rows (review 5, finding 12).
   const startingRef = useRef<Promise<string | null> | null>(null);
@@ -202,7 +200,6 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
     startingRef.current = null;
     savedStep.current = "";
     savedResult.current = null;
-    setChosenPath(null);
     update((s) => ({ ...emptyState(), result: s.result, animated: s.animated, screen: "about", pos: 0 }));
   }
 
@@ -257,7 +254,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
           if (s.pos === 0) return { ...s, screen: "flow", pos: FLOW_LENGTH - 1 };
           // J2 was skipped, so Back from J3 goes to J1.
           return { ...s, pos: s.pos === 3 && triedNothing(s.journey) ? 1 : s.pos - 1 };
-        case "paths":
+        case "share":
         case "confirm":
           return { ...s, screen: "result", pos: 0 };
         case "result":
@@ -327,7 +324,7 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   // her own words, the 24 individual answers or the check-in. Failures are ignored: her
   // own copy, on her own device, is the one that matters.
   const dbStep = (screen: Screen): DbStep =>
-    screen === "flow" ? "pillars" : screen === "confirm" ? "paths" : (screen as DbStep);
+    screen === "flow" ? "pillars" : screen === "share" || screen === "confirm" ? "paths" : (screen as DbStep);
   const savedStep = useRef<string>("");
   useEffect(() => {
     if (!dbEnabled || !state || state.screen === "welcome") return;
@@ -521,36 +518,27 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
                   context={state.context}
                   journey={state.journey}
                   animate={!state.animated}
-                  onContinue={() => go("paths")}
+                  onContinue={() => go("share")}
                   onRetake={start}
                 />
               )}
-              {!fromLink && state.screen === "paths" && state.result && (
-                <Paths
+              {!fromLink && state.screen === "share" && state.result && (
+                <Share
                   headingRef={headingRef}
-                  result={state.result}
-                  chosen={chosenPath}
-                  onChoose={setChosenPath}
                   onBack={back}
                   form={
-                    chosenPath && dbEnabled ? (
+                    dbEnabled ? (
+                      // No path is chosen here any more: Renata talks the options through in
+                      // the 30 minutes. What the Map recommended still reaches her.
                       <ShareForm
                         mapId={state.mapId}
-                        chosenPath={chosenPath}
                         personal={state.personal}
                         answers={state.answers}
-                        onShared={() => {
-                          update((s) => ({
-                            ...s,
-                            screen: "confirm",
-                            pos: 0,
-                            result: s.result ? { ...s.result, chosen_path: chosenPath } : s.result,
-                          }));
-                        }}
+                        onShared={() => update((s) => ({ ...s, screen: "confirm", pos: 0 }))}
                       />
                     ) : (
                       <p className="card px-4 py-3 text-sm" role="note">
-                        {FLAT_MESSAGES[locale][dbEnabled ? "paths.pick" : "paths.soon"]}
+                        {FLAT_MESSAGES[locale]["paths.soon"]}
                       </p>
                     )
                   }

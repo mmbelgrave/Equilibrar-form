@@ -74,15 +74,10 @@ test("the 'Map suggests; it does not decide' line, exactly as the spec writes it
   );
 });
 
-test("spec v3: nine about-you questions, five journey questions, three path cards", () => {
+test("spec v3: nine about-you questions and five journey questions", () => {
   for (const m of [pt, en]) {
     for (let i = 0; i <= 8; i++) assert.ok(m[`c${i}.q`], `c${i}.q`);
     for (let i = 1; i <= 5; i++) assert.ok(m[`j${i}.q`], `j${i}.q`);
-    for (const p of ["community", "consultoria", "mentorship"]) {
-      for (const f of ["name", "promise", "length", "covers", "continues", "forYou"]) {
-        assert.ok(m[`path.${p}.${f}`], `path.${p}.${f}`);
-      }
-    }
   }
   assert.match(en["c7.hint"], /two/);
 });
@@ -131,11 +126,17 @@ test("the result always says everyone begins at Claim", () => {
   }
 });
 
-test("the paths screen says signing up is not possible yet, and the price is not invented", () => {
-  for (const m of [pt, en]) {
-    assert.ok(m["paths.soon"]);
-    assert.ok(m["paths.priceTbc"]);
-    assert.ok(!/€|\$|R\$/.test(Object.values(m).join(" ")), "no price is shown until the review");
+test("the three path cards are gone, and no price is named anywhere", () => {
+  // Renata took the cards out: she would rather talk the options through in the 30 minutes
+  // than have a woman choose one off a page before they have spoken. What the Map
+  // recommends is still worked out and still reaches Re - it just is not shown to her.
+  for (const [locale, m] of Object.entries({ pt, en })) {
+    for (const k of Object.keys(m)) {
+      assert.ok(!k.startsWith("path."), locale + ": " + k + " should be gone");
+      assert.ok(!k.startsWith("paths.col") && k !== "paths.priceTbc", locale + ": " + k + " should be gone");
+    }
+    assert.ok(m["share.title"] && m["share.lead"], locale + ": the share screen needs its words");
+    assert.ok(!/€|\$|R\$/.test(Object.values(m).join(" ")), locale + ": no price anywhere");
   }
 });
 
