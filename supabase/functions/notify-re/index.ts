@@ -40,7 +40,9 @@ const PILLAR_PT: Record<string, string> = {
   space: "Espaço",
   routine: "Rotina",
   sleep: "Sono",
-  calm: "Calma",
+  // The stored field is still `calm`, but the pillar was renamed to Emoções everywhere a
+  // woman or Rê can read it. Her notification was the last place still saying "Calma".
+  calm: "Emoções",
   food: "Alimentação",
   strength: "Força",
 };
