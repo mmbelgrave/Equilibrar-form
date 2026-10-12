@@ -11,13 +11,15 @@ type Props = {
   onSwitch?: (locale: Locale) => void;
   /** "full": the logo lockup (welcome, result). "compact": lotus + wordmark (questions). */
   variant?: "full" | "compact";
+  /** Rê's own page has its own language switch and no Map to send her to, so it hides this one. */
+  showLanguage?: boolean;
 };
 
 /**
  * The title band: Renata's logo on its own rose (the image background is rose-500
  * exactly, so it sits seamlessly). The PT / EN toggle is text, never flags (§11).
  */
-export function Header({ locale, hrefs, onSwitch, variant = "compact" }: Props) {
+export function Header({ locale, hrefs, onSwitch, variant = "compact", showLanguage = true }: Props) {
   const t = useTranslations();
   return (
     <header className="band">
@@ -34,7 +36,7 @@ export function Header({ locale, hrefs, onSwitch, variant = "compact" }: Props) 
           ) : (
             <span />
           )}
-          <LanguageToggle locale={locale} hrefs={hrefs} onSwitch={onSwitch} />
+          {showLanguage ? <LanguageToggle locale={locale} hrefs={hrefs} onSwitch={onSwitch} /> : <span />}
         </div>
         {variant === "full" && (
           <div className="flex justify-center pb-4">

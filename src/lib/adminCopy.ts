@@ -25,6 +25,8 @@ export const COPY = {
     signOutYes: "Sim, sair",
     signOutNo: "Não",
     noAccess: "Não consegui mandar o link. Confira o e-mail, ou fale com quem cuida do sistema.",
+    tooMany:
+      "Já foram mandados links demais na última hora. Espere uma hora e tente de novo — o link antigo que estiver no seu e-mail ainda funciona.",
     noAccessAccount: "Esta conta não está na lista de quem pode ver os Mapas. Fale com quem cuida do sistema.",
     notConfigured: "O banco de dados ainda não está configurado, então não há Mapas para mostrar.",
     failed: "Não deu para falar com o banco de dados. Atualize a página.",
@@ -111,6 +113,8 @@ export const COPY = {
     signOutYes: "Yes, sign out",
     signOutNo: "No",
     noAccess: "I could not send the link. Check the address, or ask whoever looks after the system.",
+    tooMany:
+      "Too many sign-in links have gone out in the last hour. Wait an hour and try again — an older link still sitting in your inbox will also still work.",
     noAccessAccount: "This account is not on the list of people who may see the Maps. Ask whoever looks after the system.",
     notConfigured: "The database is not set up yet, so there are no Maps to show.",
     failed: "I could not reach the database. Reload the page.",

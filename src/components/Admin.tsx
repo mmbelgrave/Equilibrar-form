@@ -283,7 +283,9 @@ function Shell({
   // provider's locale is what puts her questions in her language too.
   return (
     <NextIntlClientProvider locale={lang} messages={MESSAGES[lang]} timeZone="Europe/Lisbon">
-      <Header locale={lang} hrefs={{ pt: PATHS.pt.map, en: PATHS.en.map }} variant="compact" />
+      {/* The band's own PT/EN links go to the Map, which is not where Rê wants to land from
+          her own page. The switch she needs is the one beside the title. */}
+      <Header locale={lang} hrefs={{ pt: PATHS.pt.map, en: PATHS.en.map }} variant="compact" showLanguage={false} />
       <div className="mx-auto flex w-full max-w-[900px] flex-1 flex-col gap-4 px-5 pt-6 pb-12">
         <div className="no-print flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
           <h1 className="t-title">{t.title}</h1>
@@ -344,7 +346,11 @@ function SignIn({ lang, onLang, t }: { lang: Locale; onLang: (l: Locale) => void
         emailRedirectTo: typeof window === "undefined" ? undefined : window.location.href,
       },
     });
-    if (error) setError(t.noAccess);
+    // "I could not send the link" was the answer to everything, including the one cause that
+    // is neither the address nor the account: the project may send only two sign-in e-mails
+    // an hour, and the second admin signing in uses the last one. Saying so is the
+    // difference between waiting an hour and hunting a bug that is not there.
+    if (error) setError(error.status === 429 || /rate/i.test(error.message) ? t.tooMany : t.noAccess);
     else setSent(true);
   }
 
