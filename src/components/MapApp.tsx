@@ -329,6 +329,18 @@ export function MapApp({ initialLocale }: { initialLocale: Locale }) {
   useEffect(() => {
     if (!dbEnabled || !state || state.screen === "welcome") return;
     const scores = scoresSoFar(state.answers);
+    // Nothing is written until she has actually answered something. The row used to be
+    // created the moment she left the welcome screen, so opening the Map and closing it
+    // again left a row with nothing in it, and Rê's page filled up with people who were
+    // never there. Drop-offs are still visible: anyone who answers even one question has
+    // a row, which is what "where women stop" needs.
+    const said =
+      Object.values(state.context).some((v) => (Array.isArray(v) ? v.length > 0 : v !== null)) ||
+      state.journey.tried.length > 0 ||
+      state.journey.obstacles.length > 0 ||
+      state.journey.readiness !== null ||
+      Object.keys(scores).length > 0;
+    if (!state.mapId && !said) return;
     const fingerprint = JSON.stringify([
       dbStep(state.screen),
       state.context,

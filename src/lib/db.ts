@@ -473,3 +473,18 @@ export async function isAdmin(): Promise<boolean> {
   const { data, error } = await supabase.rpc("is_admin");
   return !error && data === true;
 }
+
+/**
+ * Which language this admin's own page opens in, from her row in `admins`.
+ *
+ * Only an admin may read that table at all, so a `null` here means "ask again later" rather
+ * than anything about who she is: the page keeps its current language instead of flicking
+ * to a default while the answer is in flight.
+ */
+export async function adminLocale(email: string): Promise<"pt" | "en" | null> {
+  const supabase = db();
+  if (!supabase) return null;
+  const { data, error } = await supabase.from("admins").select("locale").ilike("email", email).maybeSingle();
+  if (error || !data) return null;
+  return data.locale === "en" ? "en" : "pt";
+}

@@ -137,6 +137,17 @@ create table if not exists public.admins (
   added_at timestamptz not null default now()
 );
 
+-- Which language her own page opens in. Renata reads Portuguese, Mwata reads English, and
+-- neither should have to switch it every time. Added with ALTER rather than inside the
+-- CREATE above, because `create table if not exists` is a no-op on a table that already
+-- exists and the column would never reach Rê's project (the same trap as link_token).
+alter table public.admins add column if not exists locale text not null default 'pt';
+alter table public.admins drop constraint if exists admins_locale_known;
+alter table public.admins add constraint admins_locale_known check (locale in ('pt', 'en'));
+
+update public.admins set locale = 'en' where lower(email) = 'mmbelgrave@hotmail.com';
+update public.admins set locale = 'pt' where lower(email) = 'nutricao.renata@hotmail.com';
+
 -- The address has to be one Supabase has proved, not one merely claimed in a token: if
 -- email confirmations were ever switched off in the project, an unverified address could
 -- otherwise name itself an admin (review 5, finding 7).
